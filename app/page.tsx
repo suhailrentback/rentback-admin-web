@@ -1,15 +1,21 @@
-import Brand from '@/components/Brand';
+import Link from 'next/link';
+import { Brand } from '@/components/Brand';
 
-export default function AdminHome() {
+export default function Home() {
   return (
-    <section className="py-12">
-      <div className="flex items-center gap-3">
-        <Brand />
-        <h1 className="text-3xl font-extrabold">Admin Console</h1>
-      </div>
-      <p className="mt-4 opacity-80">
-        Minimal admin shell is live. We’ll add protected routes, role checks, and SBP tooling next.
-      </p>
-    </section>
+    <div className="min-h-screen">
+      <header className="border-b border-black/10 dark:border-white/10 bg-white/70 dark:bg-black/20 backdrop-blur">
+        <div className="mx-auto max-w-5xl h-14 flex items-center justify-between px-4">
+          <Brand />
+          <Link href="/api/health" className="text-sm underline">Health</Link>
+        </div>
+      </header>
+      <main className="mx-auto max-w-5xl px-4 py-10">
+        <h1 className="text-2xl font-bold">RentBack App — Baseline OK</h1>
+        <p className="opacity-70 mt-2">
+          If you see this, the build is green. Next step will add auth & theming.
+        </p>
+      </main>
+    </div>
   );
 }
