@@ -7,7 +7,7 @@ import { supabaseServer } from '@/lib/supabase/server';
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
-  const next = url.searchParams.get('next') || '/'; // default to admin home
+  const next = url.searchParams.get('next') || '/';
 
   const supabase = supabaseServer();
 
