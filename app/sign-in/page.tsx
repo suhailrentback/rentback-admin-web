@@ -1,7 +1,8 @@
-// app/sign-in/page.tsx
 'use client';
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Brand } from '@/components/Brand';
@@ -46,7 +47,15 @@ const copy: Record<Lang, {
   },
 };
 
-export default function AdminSignIn() {
+export default function AdminSignInPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminSignInInner />
+    </Suspense>
+  );
+}
+
+function AdminSignInInner() {
   const [lang, setLang] = useState<Lang>('en');
   useEffect(() => {
     try {
