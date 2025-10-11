@@ -1,9 +1,6 @@
 // components/Brand.tsx
-'use client';
-
 import * as React from 'react';
 
-/** Inline SVG home/roof mark — emerald stroke by default (#059669). */
 export function Logo({
   size = 22,
   stroke = '#059669',
@@ -32,7 +29,6 @@ export function Logo({
   );
 }
 
-/** Brand = Logo + wordmark "RentBack" (emerald-600 light / emerald-400 dark) */
 export function Brand({
   size = 22,
   stroke = '#059669',
