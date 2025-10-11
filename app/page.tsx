@@ -1,21 +1,18 @@
-import Link from 'next/link';
-import { Brand } from '@/components/Brand';
+// app/page.tsx
+import { supabaseServer } from '../lib/supabase/server';
 
-export default function Home() {
+export default async function AdminHome() {
+  const supabase = supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-black/10 dark:border-white/10 bg-white/70 dark:bg-black/20 backdrop-blur">
-        <div className="mx-auto max-w-5xl h-14 flex items-center justify-between px-4">
-          <Brand />
-          <Link href="/api/health" className="text-sm underline">Health</Link>
-        </div>
-      </header>
-      <main className="mx-auto max-w-5xl px-4 py-10">
-        <h1 className="text-2xl font-bold">RentBack Admin — Baseline OK</h1>
-        <p className="opacity-70 mt-2">
-          If you see this, the build is green. Next we’ll add separate admin sign-in & RBAC.
-        </p>
-      </main>
+    <div className="max-w-2xl">
+      <h1 className="text-2xl font-bold">Admin</h1>
+      {user ? (
+        <p className="mt-2 opacity-80 text-sm">Signed in as <strong>{user.email}</strong>.</p>
+      ) : (
+        <p className="mt-2 opacity-80 text-sm">You are signed out.</p>
+      )}
     </div>
   );
 }
