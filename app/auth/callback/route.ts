@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { supabaseServer } from '../../lib/supabase/server';
+import { supabaseServer } from '../../../lib/supabase/server';
 
 const ADMIN_EMAIL = 'admin@rentback.app';
 
