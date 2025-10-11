@@ -1,63 +1,50 @@
-// rentback-admin-web/app/page.tsx
-// Admin landing (no header/footer here; layout provides them)
-"use client";
-export const dynamic = "force-dynamic";
-
+// app/page.tsx — admin landing (no header/footer here)
 import Link from "next/link";
+import { getLang, getCopy } from "@/lib/i18n";
 
 export default function AdminLanding() {
-  return (
-    <main className="mx-auto max-w-6xl px-4">
-      {/* Hero */}
-      <section className="py-16">
-        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">
-          RentBack <span className="text-emerald-600 dark:text-emerald-400">Admin</span>
-        </h1>
-        <p className="mt-3 text-lg opacity-80">
-          Secure operations console for payouts, reconciliation, rewards, tenants, and staff roles.
-        </p>
+  const lang = getLang();
+  const c = getCopy(lang).hero;
 
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link
-            href="/sign-in"
-            className="px-5 py-3 rounded-xl font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            Sign in to Admin
+  return (
+    <section className="py-16 grid lg:grid-cols-2 gap-10 items-start">
+      <div>
+        <h1 className="text-3xl md:text-4xl font-extrabold">{c.title}</h1>
+        <p className="mt-3 opacity-80">{c.sub}</p>
+
+        <div className="mt-6 flex gap-3">
+          <Link href="/sign-in" className="px-4 py-2 rounded-xl font-semibold bg-emerald-600 hover:bg-emerald-700 text-white">
+            {c.cta}
           </Link>
-          <a
-            href="https://www.rentback.app/"
-            className="px-5 py-3 rounded-xl font-semibold border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10"
-          >
-            Go to Main Site
+          <a href="https://www.rentback.app" className="px-4 py-2 rounded-xl font-semibold border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10">
+            {c.goMain}
           </a>
         </div>
 
-        <ul className="mt-6 space-y-1 text-sm opacity-75">
-          <li>• Access is restricted to <b>admin@rentback.app</b> and approved staff.</li>
-          <li>• Least-privilege roles, audit logs, and 2FA recommended.</li>
-          <li>• Use a secure device and private network when accessing Admin.</li>
+        <ul className="mt-6 space-y-2 text-sm opacity-80">
+          {c.bullets.map((b, i) => <li key={i}>• {b}</li>)}
         </ul>
-      </section>
+      </div>
 
-      {/* Mock admin widgets (preview only) */}
-      <section className="grid md:grid-cols-4 gap-4">
-        <Card title="Today" subtitle="PKR 2,450,000" foot="Collected" />
-        <Card title="Open Tickets" subtitle="7" foot="SLA &lt; 24h" />
-        <Card title="Pending Payouts" subtitle="12" foot="Cutoff 6pm PKT" />
-        <Card title="Risk Flags" subtitle="3" foot="Review queue" />
-      </section>
-
-      <p className="mt-4 text-xs opacity-70">Mock admin widgets for preview only.</p>
-    </main>
+      <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white dark:bg-white/5 p-6">
+        <div className="grid grid-cols-2 gap-4">
+          <Widget label="Today" value="PKR 2,450,000" sub="Collected" />
+          <Widget label="Open Tickets" value="7" sub="SLA &lt; 24h" />
+          <Widget label="Pending Payouts" value="12" sub="Cutoff 6pm PKT" />
+          <Widget label="Risk Flags" value="3" sub="Review queue" />
+        </div>
+        <p className="mt-3 text-xs opacity-70">{c.mockNote}</p>
+      </div>
+    </section>
   );
 }
 
-function Card({ title, subtitle, foot }: { title: string; subtitle: string; foot: string }) {
+function Widget({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="rounded-2xl border border-black/10 dark:border-white/10 p-5 bg-white dark:bg-white/5">
-      <div className="text-xs opacity-70">{title}</div>
-      <div className="mt-2 text-2xl font-semibold">{subtitle}</div>
-      <div className="mt-1 text-sm opacity-70">{foot}</div>
+    <div className="rounded-xl p-4 bg-gradient-to-br from-emerald-600/10 to-emerald-400/10 border border-emerald-600/20">
+      <div className="text-xs opacity-70">{label}</div>
+      <div className="text-xl font-semibold">{value}</div>
+      <div className="text-xs opacity-70">{sub}</div>
     </div>
   );
 }
