@@ -5,7 +5,6 @@ import { createServerClient } from '@supabase/ssr';
 export function supabaseServer() {
   const cookieStore = cookies();
 
-  // Use a version-agnostic cookie shim to avoid TS mismatch across @supabase/ssr releases.
   const cookieShim = {
     get: (name: string) => cookieStore.get(name)?.value,
     set: (name: string, value: string, options: any) =>
