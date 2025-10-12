@@ -1,16 +1,12 @@
+// USE IN ADMIN REPO ONLY: rentback-admin-web
 // app/layout.tsx
-export const dynamic = "force-dynamic";
-
 import "./globals.css";
 import type { Metadata } from "next";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { getLang, getTheme, getDir } from "@/lib/i18n";
 
-export const metadata: Metadata = {
-  title: "RentBack Admin",
-  description: "Secure operations console for RentBack.",
-};
+export const metadata: Metadata = { title: "RentBack Admin" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const lang = getLang();
