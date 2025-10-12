@@ -14,18 +14,18 @@ export default function Header() {
       <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between">
         <div className="inline-flex items-center gap-3">
           <Brand />
-          <span className="text-sm opacity-70">/ {t.admin}</span>
+          <span className="text-sm opacity-70">/ {t.admin ?? "Admin"}</span>
         </div>
         <nav className="flex items-center gap-3">
           <a
             href="https://www.rentback.app"
-            className="px-3 py-2 text-sm rounded-lg hover:bg-black/5 dark:hover:bg_WHITE/10 dark:hover:bg-white/10"
+            className="px-3 py-2 text-sm rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
           >
-            {t.mainSite}
+            {t.mainSite ?? "Main Site"}
           </a>
           <Link
             href="/sign-in"
-            className="px-3 py-2 text-sm rounded-lg hover:bg_black/5 dark:hover:bg_white/10 hover:bg-black/5 dark:hover:bg-white/10"
+            className="px-3 py-2 text-sm rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
           >
             {t.signIn}
           </Link>
