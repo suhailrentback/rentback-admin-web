@@ -6,7 +6,8 @@ export type Theme = "light" | "dark";
 
 type CommonCopy = {
   brand: string;
-  admin: string;           // ← new: used in Header to show “/ Admin”
+  admin: string;      // used in Header: “/ Admin”
+  mainSite: string;   // ← NEW: used in Header: “Main Site”
   signIn: string;
   demoMode: string;
   privacy: string;
@@ -32,16 +33,15 @@ export type Copy = {
   adminLanding: AdminLandingCopy;
 };
 
-// ---------- cookie readers that work on server and client ----------
+// ---------- cookie readers ----------
 function readCookie(name: string): string | undefined {
   if (typeof window !== "undefined") {
     const m = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
     return m ? decodeURIComponent(m[1]) : undefined;
   }
-  // dynamic require avoids bundling next/headers in client code
+  // dynamic require so this file is safe in client bundles
   const nh = require("next/headers");
-  const val = nh.cookies().get(name)?.value as string | undefined;
-  return val;
+  return nh.cookies().get(name)?.value as string | undefined;
 }
 
 export function getLang(): Lang {
@@ -65,6 +65,7 @@ const copy: Record<Lang, Copy> = {
     common: {
       brand: "RentBack",
       admin: "Admin",
+      mainSite: "Main Site",
       signIn: "Sign in",
       demoMode: "Demo Mode",
       privacy: "Privacy",
@@ -97,6 +98,7 @@ const copy: Record<Lang, Copy> = {
     common: {
       brand: "رینٹ بیک",
       admin: "ایڈمن",
+      mainSite: "مین سائٹ",
       signIn: "سائن اِن",
       demoMode: "ڈیمو موڈ",
       privacy: "پرائیویسی",
