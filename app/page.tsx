@@ -1,84 +1,49 @@
+// USE IN ADMIN REPO ONLY: rentback-admin-web
 // app/page.tsx
 import Link from "next/link";
 import { getLang, getCopy } from "@/lib/i18n";
 
 export default function AdminLanding() {
   const lang = getLang();
-  const c = getCopy(lang).adminLanding; // AdminLandingCopy
-  const t = getCopy(lang).common;       // CommonCopy for button labels like sign in, mainSite
+  const c = getCopy(lang).adminLanding!;
 
   return (
     <section className="py-16 grid lg:grid-cols-2 gap-10 items-start">
-      {/* Left: hero copy */}
       <div className="space-y-6">
-        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
-          {c.title}
-        </h1>
+        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight">{c.title}</h1>
+        <p className="text-lg text-neutral-600 dark:text-neutral-300">{c.subtitle}</p>
 
-        <p className="text-lg text-neutral-600 dark:text-neutral-300">
-          {c.subtitle}
-        </p>
-
-        <div className="flex flex-wrap gap-3">
+        <div className="flex items-center gap-3">
           <Link
             href="/sign-in"
             className="px-5 py-3 rounded-xl font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
           >
-            {c.signInAdmin ?? t.signIn}
+            Sign in to Admin
           </Link>
-
           <a
             href="https://www.rentback.app"
-            className="px-5 py-3 rounded-xl font-semibold border border-neutral-300 dark:border-neutral-700 hover:bg-black/5 dark:hover:bg-white/10"
+            className="px-5 py-3 rounded-xl font-semibold border border-black/10 dark:border-white/10"
           >
-            {c.goToMain ?? t.mainSite}
+            Go to Main Site
           </a>
         </div>
 
-        {Array.isArray(c.notes) && c.notes.length > 0 && (
-          <ul className="mt-6 space-y-2 text-neutral-700 dark:text-neutral-300">
-            {c.notes.map((n, i) => (
-              <li key={i} className="flex items-start gap-2">
-                <span className="mt-1 inline-block h-2 w-2 rounded-full bg-emerald-600" />
-                <span>{n}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ul className="mt-6 space-y-1 text-sm text-neutral-600 dark:text-neutral-300">
+          {c.notes.map((n, i) => (
+            <li key={i}>• {n}</li>
+          ))}
+        </ul>
       </div>
 
-      {/* Right: sample dashboard tiles */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4">
-          <div className="text-sm opacity-70">
-            {c.dashboardSample?.collectedToday}
+        {c.kpis.map((k, i) => (
+          <div key={i} className="rounded-2xl p-5 border border-black/10 dark:border-white/10 bg-white/60 dark:bg-neutral-900/40">
+            <div className="text-sm opacity-70">{k.label}</div>
+            <div className="text-2xl font-bold">{k.value}</div>
+            <div className="text-xs opacity-70">{k.sub}</div>
           </div>
-          <div className="mt-2 text-2xl font-bold">PKR 2,450,000</div>
-        </div>
-
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4">
-          <div className="text-sm opacity-70">
-            {c.dashboardSample?.openTickets}
-          </div>
-          <div className="mt-2 text-2xl font-bold">7</div>
-          <div className="text-xs opacity-70">SLA &lt; 24h</div>
-        </div>
-
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4">
-          <div className="text-sm opacity-70">
-            {c.dashboardSample?.pendingPayouts}
-          </div>
-          <div className="mt-2 text-2xl font-bold">12</div>
-          <div className="text-xs opacity-70">Cutoff 6pm PKT</div>
-        </div>
-
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4">
-          <div className="text-sm opacity-70">
-            {c.dashboardSample?.riskFlags}
-          </div>
-          <div className="mt-2 text-2xl font-bold">3</div>
-          <div className="text-xs opacity-70">{c.dashboardSample?.tagPreview}</div>
-        </div>
+        ))}
+        <div className="col-span-2 text-sm opacity-70">{c.mockNote}</div>
       </div>
     </section>
   );
