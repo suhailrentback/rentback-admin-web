@@ -1,128 +1,106 @@
-// ADMIN /lib/i18n.ts
-"use client";
+// WEB & ADMIN — replace file: /lib/i18n.ts
 
+import type { cookies as CookiesFn } from "next/headers";
+
+// ----------------- Types -----------------
 export type Lang = "en" | "ur";
 export type Theme = "light" | "dark";
 
-export function getLang(): Lang {
-  if (typeof window === "undefined") return "en";
-  const v = window.localStorage.getItem("rb-lang");
-  return v === "ur" ? "ur" : "en";
-}
-export function setLang(lang: Lang) {
-  try {
-    window.localStorage.setItem("rb-lang", lang);
-    document.documentElement.setAttribute("lang", lang);
-    document.documentElement.setAttribute("dir", getDir(lang));
-  } catch {}
-}
-
-export function getTheme(): Theme {
-  if (typeof window === "undefined") return "light";
-  const v = window.localStorage.getItem("rb-theme");
-  return v === "dark" ? "dark" : "light";
-}
-export function setTheme(theme: Theme) {
-  try {
-    window.localStorage.setItem("rb-theme", theme);
-    if (theme === "dark") document.documentElement.classList.add("dark");
-    else document.documentElement.classList.remove("dark");
-  } catch {}
-}
-
-export function getDir(lang?: Lang): "ltr" | "rtl" {
-  const l = lang ?? getLang();
-  return l === "ur" ? "rtl" : "ltr";
-}
-
-/* ===== Copy types ===== */
 export type CommonCopy = {
-  brand: "RentBack";
+  brand: string;      // "RentBack" (UI/logo text stays unchanged)
   signIn: string;
   admin: string;
   mainSite: string;
-  langNames: { en: string; ur: string };
-  themeNames: { light: string; dark: string };
-  footer: { privacy: string; terms?: string; contact: string; copyright: string };
+  founder: string;
+  privacy: string;
+  terms: string;
+  contact: string;
 };
 
-export type AdminLandingCopy = {
-  title: string;
-  subtitle: string;
-  signInCta: string;
-  goToMainSite: string;
-  bullets: string[];
-  finePrint: string;
+export type LandingCopy = {
+  // These two are what app/page.tsx is using:
+  h1: string;
+  sub: string;
 };
 
 export type Copy = {
   common: CommonCopy;
-  adminLanding: AdminLandingCopy;
-  auth: { signIn: { title: string } };
+  landing: LandingCopy;
 };
 
-const copy: Record<Lang, Copy> = {
+// ----------------- Dictionaries -----------------
+const COPY: Record<Lang, Copy> = {
   en: {
     common: {
       brand: "RentBack",
       signIn: "Sign in",
       admin: "Admin",
       mainSite: "Go to Main Site",
-      langNames: { en: "English", ur: "اردو" },
-      themeNames: { light: "Light", dark: "Dark" },
-      footer: {
-        privacy: "Privacy",
-        contact: "Contact",
-        copyright: "© 2025 RentBack Technologies (Pvt) Ltd",
-      },
+      founder: "Founder",
+      privacy: "Privacy",
+      terms: "Terms",
+      contact: "Contact",
     },
-    adminLanding: {
-      title: "RentBack Admin",
-      subtitle:
-        "Secure operations console for payouts, reconciliation, rewards, tenants, and staff roles.",
-      signInCta: "Sign in to Admin",
-      goToMainSite: "Go to Main Site",
-      bullets: [
-        "Access is restricted to admin@rentback.app and approved staff.",
-        "Least-privilege roles, audit logs, and 2FA recommended.",
-        "Use a secure device and private network when accessing Admin.",
-      ],
-      finePrint: "Mock admin widgets for preview only.",
+    landing: {
+      h1: "Pay rent, earn rewards.",
+      sub:
+        "A modern rent-payments experience for Pakistan — Raast, cards & wallets, and a local rewards marketplace.",
     },
-    auth: { signIn: { title: "Admin Sign In" } },
   },
   ur: {
     common: {
       brand: "RentBack",
       signIn: "سائن اِن",
       admin: "ایڈمن",
-      mainSite: "مین سائٹ",
-      langNames: { en: "English", ur: "اردو" },
-      themeNames: { light: "لائٹ", dark: "ڈارک" },
-      footer: {
-        privacy: "پرائیویسی",
-        contact: "رابطہ",
-        copyright: "© 2025 RentBack Technologies (Pvt) Ltd",
-      },
+      mainSite: "مین سائٹ پر جائیں",
+      founder: "بانی",
+      privacy: "پرائیویسی",
+      terms: "شرائط",
+      contact: "رابطہ",
     },
-    adminLanding: {
-      title: "RentBack ایڈمن",
-      subtitle:
-        "محفوظ آپریشنز کنسول — پے آؤٹس، ریکنسلی ایشن، ریوارڈز، ٹیننٹس اور اسٹاف رولز۔",
-      signInCta: "ایڈمن میں سائن اِن",
-      goToMainSite: "مین سائٹ",
-      bullets: [
-        "رسائی صرف admin@rentback.app اور منظور شدہ اسٹاف کے لیے۔",
-        "کم سے کم اختیارات، آڈٹ لاگز اور 2FA کی سفارش۔",
-        "ایڈمن تک رسائی کے لیے محفوظ ڈیوائس/نیٹ ورک استعمال کریں۔",
-      ],
-      finePrint: "صرف پریویو کے لیے ماک ایڈمن وِجدٹس۔",
+    landing: {
+      h1: "کرایہ ادا کریں، انعامات پائیں۔",
+      sub:
+        "پاکستان کے لیے جدید رینٹ پیمنٹس—راست، کارڈز و والیٹس، اور مقامی ریوارڈز مارکیٹ پلیس۔",
     },
-    auth: { signIn: { title: "ایڈمن سائن اِن" } },
   },
 };
 
-export function getCopy(lang?: Lang): Copy {
+// ----------------- Helpers (SSR/CSR-safe) -----------------
+function readCookie(name: string): string | undefined {
+  // Client-side
+  if (typeof document !== "undefined") {
+    const m = document.cookie.match(
+      new RegExp("(^|; )" + name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&") + "=([^;]*)")
+    );
+    return m ? decodeURIComponent(m[2]) : undefined;
+  }
+  // Server-side (Next.js)
+  try {
+    // require to avoid bundling issues in client
+    const { cookies } = require("next/headers") as { cookies: typeof CookiesFn };
+    return cookies().get(name)?.value;
+  } catch {
+    return undefined;
+  }
+}
+
+// ----------------- Public API -----------------
+export function getCopy(lang: Lang): Copy {
+  return COPY[lang] ?? COPY.en;
+}
+
+export function getLang(): Lang {
+  const v = readCookie("rb-lang");
+  return v === "ur" ? "ur" : "en";
+}
+
+export function getTheme(): Theme {
+  const v = readCookie("rb-theme");
+  return v === "dark" ? "dark" : "light";
+}
+
+export function getDir(lang?: Lang): "ltr" | "rtl" {
   const l = lang ?? getLang();
-  return copy[l];
+  return l === "ur" ? "rtl" : "ltr";
 }
