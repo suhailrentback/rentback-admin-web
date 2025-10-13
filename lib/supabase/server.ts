@@ -1,6 +1,15 @@
-// ADMIN: lib/supabase/server.ts
+// ADMIN /lib/supabase/server.ts
 import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import {
+  createServerComponentClient,
+  createRouteHandlerClient
+} from '@supabase/auth-helpers-nextjs';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
-export const supabaseServer = () => createServerComponentClient({ cookies });
-export default supabaseServer;
+export function createServerSupabase(): SupabaseClient {
+  return createServerComponentClient({ cookies });
+}
+
+export function createRouteSupabase(): SupabaseClient {
+  return createRouteHandlerClient({ cookies });
+}
