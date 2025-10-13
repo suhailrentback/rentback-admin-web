@@ -1,10 +1,11 @@
-// ADMIN /app/robots.ts
+// ADMIN: /app/robots.ts  (noindex, nofollow)
 import type { MetadataRoute } from "next";
 
 export default function robots(): MetadataRoute.Robots {
+  const base = "https://admin.rentback.app";
   return {
     rules: [{ userAgent: "*", disallow: "/" }],
-    sitemap: "https://admin.rentback.app/sitemap.xml",
-    host: "https://admin.rentback.app",
+    sitemap: `${base}/sitemap.xml`,
+    host: base,
   };
 }
