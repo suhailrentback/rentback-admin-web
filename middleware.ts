@@ -1,7 +1,7 @@
 // middleware.ts
 // Admin gate: allow only ADMIN or STAFF past this point.
 // Non-authenticated users and non-staff are redirected to /sign-in.
-// No visual changes.
+// No visual changes. No matcher regex (we exclude paths in-code).
 
 import { NextRequest, NextResponse } from "next/server";
 import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
@@ -17,15 +17,29 @@ const PUBLIC_PATHS = new Set<string>([
 ]);
 
 function isPublicPath(pathname: string) {
-  if (pathname.startsWith("/_next/")) return true; // Next assets
-  if (pathname.startsWith("/api/public/")) return true; // opt-in public APIs
   return PUBLIC_PATHS.has(pathname);
+}
+
+function isStaticOrAsset(pathname: string) {
+  if (pathname.startsWith("/_next/")) return true;    // Next assets
+  if (pathname.startsWith("/static/")) return true;   // conventional static
+  if (pathname.startsWith("/images/")) return true;   // conventional images
+  if (pathname === "/favicon.ico") return true;
+  if (pathname === "/robots.txt") return true;
+  if (pathname === "/sitemap.xml") return true;
+  if (pathname.startsWith("/opengraph-image")) return true;
+  if (pathname.startsWith("/icon")) return true;
+  if (pathname.startsWith("/apple-icon")) return true;
+  // Basic extension check to skip heavy work on images
+  if (/\.(png|jpg|jpeg|gif|svg|webp|avif|ico)$/.test(pathname)) return true;
+  return false;
 }
 
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
-  if (isPublicPath(pathname)) {
+  // Skip assets and known-public paths
+  if (isStaticOrAsset(pathname) || isPublicPath(pathname)) {
     return NextResponse.next();
   }
 
@@ -57,7 +71,6 @@ export async function middleware(req: NextRequest) {
       .single();
     role = (data as { role?: string } | null)?.role ?? undefined;
     if (role) {
-      // Cache in a non-httpOnly cookie for header/UI awareness
       res.cookies.set("rb_role", role, {
         path: "/",
         sameSite: "lax",
@@ -77,9 +90,5 @@ export async function middleware(req: NextRequest) {
   return res;
 }
 
-// Exclude static assets and well-known files from middleware.
-export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|.*\\.(png|jpg|jpeg|gif|svg|ico)|robots\\.txt|sitemap\\.xml).*)",
-  ],
-};
+// NOTE: No `export const config = { matcher: ... }` on purpose.
+// We exclude paths inside the middleware to avoid Next.js regex restrictions.
