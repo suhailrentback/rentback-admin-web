@@ -1,28 +1,89 @@
-// ADMIN: place in rentback-admin-web/app/sign-in/page.tsx
-import Brand from "@/components/Brand";
-import Link from "next/link";
+// ADMIN: /app/sign-in/page.tsx
+// Magic-link sign-in for staff/admin (no guard yet — comes in Wave 1.1).
+// No global UI changes.
 
-export default function AdminSignIn() {
+'use client';
+
+import * as React from 'react';
+import { supabase } from '@/lib/supabaseClient';
+
+export default function AdminSignInPage() {
+  const [email, setEmail] = React.useState('');
+  const [status, setStatus] = React.useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [message, setMessage] = React.useState<string>('');
+
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (typeof window !== 'undefined' ? window.location.origin : 'https://admin.rentback.app');
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setStatus('sending');
+    setMessage('');
+
+    try {
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        setStatus('error');
+        setMessage('Auth is not configured yet. Ask dev to set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
+        return;
+      }
+
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${siteUrl}/auth/callback`,
+        },
+      });
+
+      if (error) {
+        setStatus('error');
+        setMessage(error.message || 'Failed to send the magic link.');
+      } else {
+        setStatus('sent');
+        setMessage('Magic link sent. Check your email.');
+      }
+    } catch (err: any) {
+      setStatus('error');
+      setMessage(err?.message || 'Something went wrong.');
+    }
+  }
+
   return (
-    <div className="mx-auto max-w-md">
-      <div className="mb-6">
-        <Brand href="/" />
+    <section className="py-16 max-w-md mx-auto px-4">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-bold">Admin Sign in</h1>
+        <p className="text-sm text-neutral-600 dark:text-neutral-300">
+          Staff console — use your work email to get a magic link.
+        </p>
       </div>
-      <h1 className="text-2xl font-bold mb-2">Sign in</h1>
-      <p className="text-sm opacity-80 mb-6">
-        Admin sign-in UI placeholder. This is a demo-only screen.
-      </p>
-      <div className="grid gap-3">
-        <button className="px-4 py-3 rounded-xl font-semibold bg-emerald-600 hover:bg-emerald-700 text-white">
-          Continue with Email
-        </button>
-        <Link
-          href="/"
-          className="px-4 py-3 rounded-xl font-semibold border border-neutral-200 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-center"
+
+      <form onSubmit={handleSubmit} className="mt-6 space-y-3">
+        <input
+          type="email"
+          required
+          placeholder="you@rentback.app"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full px-3 py-3 rounded-xl border border-neutral-200 dark:border-white/10 bg-white dark:bg-neutral-950 outline-none"
+        />
+        <button
+          type="submit"
+          disabled={status === 'sending'}
+          className="w-full px-4 py-3 rounded-xl font-semibold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-70"
         >
-          Continue in Demo Mode
-        </Link>
-      </div>
-    </div>
+          {status === 'sending' ? 'Sending...' : 'Send magic link'}
+        </button>
+      </form>
+
+      {message ? (
+        <div
+          className={`mt-4 text-sm ${
+            status === 'error' ? 'text-red-600' : 'text-emerald-600'
+          }`}
+        >
+          {message}
+        </div>
+      ) : null}
+    </section>
   );
 }
