@@ -1,48 +1,28 @@
-// USE IN ADMIN REPO ONLY: rentback-admin-web
-// app/sign-in/page.tsx
-"use client";
-
+// ADMIN: place in rentback-admin-web/app/sign-in/page.tsx
+import Brand from "@/components/Brand";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import Brand from "@/components/Brand"; // ✅ default import
 
-export default function AdminSignInPage() {
-  const sp = useSearchParams();
-  const error = sp.get("error");
-
+export default function AdminSignIn() {
   return (
-    <section className="mx-auto max-w-lg py-16 px-4 space-y-6">
-      <div className="flex items-center gap-3">
-        <Brand />
-        <span className="text-sm opacity-70">/ Admin</span>
+    <div className="mx-auto max-w-md">
+      <div className="mb-6">
+        <Brand href="/" />
       </div>
-
-      <h1 className="text-3xl font-extrabold tracking-tight">Sign in to Admin</h1>
-
-      {error ? (
-        <div className="rounded-lg border border-red-300/40 bg-red-500/10 text-red-800 dark:text-red-200 px-4 py-3 text-sm">
-          {error}
-        </div>
-      ) : null}
-
-      <p className="text-sm text-neutral-600 dark:text-neutral-300">
-        Access is restricted to approved staff. Use a secure device and network.
+      <h1 className="text-2xl font-bold mb-2">Sign in</h1>
+      <p className="text-sm opacity-80 mb-6">
+        Admin sign-in UI placeholder. This is a demo-only screen.
       </p>
-
-      <div className="flex items-center gap-3">
+      <div className="grid gap-3">
+        <button className="px-4 py-3 rounded-xl font-semibold bg-emerald-600 hover:bg-emerald-700 text-white">
+          Continue with Email
+        </button>
         <Link
           href="/"
-          className="px-4 py-2 rounded-lg border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10"
+          className="px-4 py-3 rounded-xl font-semibold border border-neutral-200 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-center"
         >
-          Admin Home
+          Continue in Demo Mode
         </Link>
-        <a
-          href="https://www.rentback.app"
-          className="px-4 py-2 rounded-lg border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10"
-        >
-          Main Site
-        </a>
       </div>
-    </section>
+    </div>
   );
 }
