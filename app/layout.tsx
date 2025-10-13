@@ -1,12 +1,14 @@
-// USE IN ADMIN REPO ONLY: rentback-admin-web
-// app/layout.tsx
-import "./globals.css";
+// ADMIN: place in rentback-admin-web/app/layout.tsx
+import "@/app/globals.css";
 import type { Metadata } from "next";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { getLang, getTheme, getDir } from "@/lib/i18n";
 
-export const metadata: Metadata = { title: "RentBack Admin" };
+export const metadata: Metadata = {
+  title: "RentBack Admin",
+  description: "Secure operations console.",
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const lang = getLang();
@@ -16,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang={lang} dir={dir} className={theme === "dark" ? "dark" : undefined} suppressHydrationWarning>
       <body className="min-h-screen bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 antialiased">
+        {/* Header across app */}
         <Header />
         <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
         <Footer />
