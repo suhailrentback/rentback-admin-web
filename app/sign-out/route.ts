@@ -1,11 +1,11 @@
-// ADMIN /app/sign-out/route.ts
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+// app/sign-out/route.ts
+import { NextResponse } from 'next/server'
+import { createRouteSupabase } from '@/lib/supabase/server'
 
-export async function POST() {
-  const supabase = createRouteHandlerClient({ cookies });
-  await supabase.auth.signOut();
-  const base = process.env.NEXT_PUBLIC_SITE_URL || 'https://admin.rentback.app';
-  return NextResponse.redirect(new URL('/', base));
+export const runtime = 'nodejs'
+
+export async function GET() {
+  const supabase = createRouteSupabase()
+  await supabase.auth.signOut()
+  return NextResponse.redirect(new URL('/', process.env.NEXT_PUBLIC_SITE_URL || 'https://admin.rentback.app'))
 }
