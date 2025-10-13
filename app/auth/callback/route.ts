@@ -1,68 +1,43 @@
-// app/auth/callback/route.ts
+// ADMIN: app/auth/callback/route.ts
+// Supabase auth callback: exchanges ?code for a session, then redirects.
+// This is server-side only (no UI) and works with our middleware’s ?next param.
+
 import { NextResponse } from 'next/server';
-import { supabaseServer } from '../../../lib/supabase/server';
+import { cookies } from 'next/headers';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 
-type Role = 'TENANT' | 'LANDLORD' | 'STAFF' | 'ADMIN';
+export const dynamic = 'force-dynamic';
 
-export async function GET(req: Request) {
-  const url = new URL(req.url);
+export async function GET(request: Request) {
+  const url = new URL(request.url);
   const code = url.searchParams.get('code');
   const next = url.searchParams.get('next') || '/';
 
-  const site = process.env.NEXT_PUBLIC_SITE_URL || url.origin;
-  const adminEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'admin@rentback.app').toLowerCase();
-  const isAdminApp = site.includes('admin.');
+  // If Supabase isn’t configured yet, just bounce back safely.
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-  if (!code) {
-    return NextResponse.redirect(new URL('/sign-in?error=Missing%20code', site));
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    const redirectUrl = new URL('/sign-in', url.origin);
+    redirectUrl.searchParams.set('error', 'auth_not_configured');
+    return NextResponse.redirect(redirectUrl);
   }
 
-  const supabase = supabaseServer();
-
-  // 1) Exchange code for a session
-  const { error: xErr } = await supabase.auth.exchangeCodeForSession(code);
-  if (xErr) {
-    return NextResponse.redirect(new URL(`/sign-in?error=${encodeURIComponent(xErr.message)}`, site));
-  }
-
-  // 2) Ensure Profile row exists and set default role
-  const { data: { user }, error: uErr } = await supabase.auth.getUser();
-  if (uErr || !user || !user.email) {
-    return NextResponse.redirect(new URL('/sign-in?error=No%20user', site));
-  }
-  const email = user.email.toLowerCase();
-
-  // upsert Profile with default role TENANT
-  await supabase.from('Profile').upsert({
-    id: user.id,
-    email,
-    role: 'TENANT' as Role,
-  }, { onConflict: 'id' });
-
-  // 3) Admin app hard gate: only ADMIN/STAFF allowed (and auto-promote admin email)
-  if (isAdminApp) {
-    if (email === adminEmail) {
-      // promote seed admin on first login (idempotent)
-      await supabase.from('Profile').update({ role: 'ADMIN' as Role }).eq('id', user.id);
+  try {
+    if (code) {
+      const supabase = createRouteHandlerClient({ cookies }, {
+        supabaseUrl: SUPABASE_URL,
+        supabaseKey: SUPABASE_ANON_KEY,
+      });
+      await supabase.auth.exchangeCodeForSession(code);
     }
-
-    // check role
-    const { data: prof, error: pErr } = await supabase
-      .from('Profile')
-      .select('role')
-      .eq('id', user.id)
-      .limit(1)
-      .single();
-
-    const role = (prof?.role || 'TENANT') as Role;
-
-    if (pErr || (role !== 'ADMIN' && role !== 'STAFF')) {
-      // block access on admin app
-      await supabase.auth.signOut();
-      return NextResponse.redirect(new URL('/sign-in?error=Not%20authorized', site));
-    }
+  } catch {
+    const redirectUrl = new URL('/sign-in', url.origin);
+    redirectUrl.searchParams.set('error', 'auth_exchange_failed');
+    return NextResponse.redirect(redirectUrl);
   }
 
-  // 4) Success → go to requested destination (default '/')
-  return NextResponse.redirect(new URL(next, site));
+  // Go to the intended page or home
+  const redirectTarget = new URL(next, url.origin);
+  return NextResponse.redirect(redirectTarget);
 }
