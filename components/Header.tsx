@@ -1,37 +1,63 @@
-// REPLACE FILE IN ADMIN REPO: /components/Header.tsx
+// ADD THIS FILE IN BOTH REPOS:
+// - /components/Brand.tsx  (web)
+// - /components/Brand.tsx  (admin)
+//
+// This component restores your original logo and supports BOTH
+// default and named imports to avoid build errors.
 
+/* eslint-disable react/jsx-no-useless-fragment */
+"use client";
+
+import Image from "next/image";
 import Link from "next/link";
-import Brand from "@/components/Brand";
-import ThemeLangToggle from "@/components/ThemeLangToggle";
-import { getLang, getTheme, getCopy } from "@/lib/i18n";
 
-export default async function Header() {
-  const lang = getLang();
-  const theme = getTheme();
-  const t = getCopy(lang).common; // must have t.signIn
+// IMPORTANT: We point to YOUR original file here.
+// Put your original logo at: /public/rentback-logo.svg (both repos).
+const LOGO_SRC = "/rentback-logo.svg";
 
-  return (
-    <header className="sticky top-0 z-40 backdrop-blur bg-white/70 dark:bg-neutral-950/60 border-b border-black/5 dark:border-white/10">
-      <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between">
-        <Brand href="/" />
-        <nav className="flex items-center gap-2">
-          <ThemeLangToggle initialLang={lang} initialTheme={theme} />
-          <a
-            href="https://www.rentback.app"
-            className="px-3 py-2 text-sm rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Main Site
-          </a>
-          <Link
-            href="/sign-in"
-            className="px-3 py-2 text-sm rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
-          >
-            {t.signIn}
-          </Link>
-        </nav>
-      </div>
-    </header>
+// Adjust if your SVG/PNG has different natural size.
+// (These are just display dimensions; Next will serve the static file.)
+const LOGO_WIDTH = 156;
+const LOGO_HEIGHT = 40;
+
+type Props = {
+  href?: string;      // default "/"
+  className?: string;
+  title?: string;     // accessible label
+  width?: number;
+  height?: number;
+};
+
+function BrandComp({
+  href = "/",
+  className = "",
+  title = "RentBack",
+  width = LOGO_WIDTH,
+  height = LOGO_HEIGHT,
+}: Props) {
+  const logo = (
+    <span className={`inline-flex items-center ${className}`}>
+      <Image
+        src={LOGO_SRC}
+        alt={title}
+        width={width}
+        height={height}
+        priority
+      />
+      {/* Wordmark is in the image; screen-readers still get a label: */}
+      <span className="sr-only">{title}</span>
+    </span>
+  );
+
+  return href ? (
+    <Link href={href} aria-label={title} className="inline-flex items-center">
+      {logo}
+    </Link>
+  ) : (
+    <>{logo}</>
   );
 }
+
+export default BrandComp;
+// Also export a named version for any `import { Brand } ...` usage.
+export { BrandComp as Brand };
