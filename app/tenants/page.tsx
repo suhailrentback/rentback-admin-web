@@ -1,46 +1,70 @@
-// ADMIN /app/tenants/page.tsx
-import { createServerSupabase } from '@/lib/supabase/server'
+// rentback-admin-web/app/tenants/page.tsx
+'use client';
 
-export const dynamic = 'force-dynamic'
+import { useEffect, useState } from 'react';
+import { getSupabaseBrowser } from '@/lib/supabaseClient';
 
-export default async function TenantsList() {
-  const supabase = createServerSupabase()
-  const { data: me } = await supabase.auth.getUser()
-  if (!me?.user) {
-    return <div className="max-w-3xl mx-auto py-12">Please sign in.</div>
-  }
+type TenantRow = {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+  role: 'TENANT'|'LANDLORD'|'STAFF'|'ADMIN';
+  created_at: string;
+};
 
-  // Minimal read-only list of tenant profiles
-  const { data: tenants } = await supabase
-    .from('profile')
-    .select('user_id, email, role, created_at')
-    .eq('role', 'TENANT')
-    .order('created_at', { ascending: false })
-    .limit(50)
+export default function TenantsPage() {
+  const supabase = getSupabaseBrowser();
+  const [rows, setRows] = useState<TenantRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string|null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data: sess } = await supabase.auth.getSession();
+      if (!sess?.session) { setError('Please sign in'); setLoading(false); return; }
+
+      const { data, error } = await supabase
+        .from('profile')
+        .select('user_id, full_name, email, role, created_at')
+        .in('role', ['TENANT']);
+
+      if (error) setError(error.message);
+      else setRows((data ?? []) as unknown as TenantRow[]);
+      setLoading(false);
+    })();
+  }, [supabase]);
+
+  if (loading) return <div className="p-6">Loading tenants…</div>;
+  if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
 
   return (
-    <section className="max-w-5xl mx-auto py-12">
-      <h1 className="text-2xl font-bold mb-4">Tenants</h1>
-      <div className="rounded-xl border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-black/5">
-            <tr>
-              <th className="text-left p-3">Email</th>
-              <th className="text-left p-3">Role</th>
-              <th className="text-left p-3">Joined</th>
+    <div className="p-6 space-y-4">
+      <h1 className="text-2xl font-semibold">Tenants</h1>
+      <div className="rounded-2xl border overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="border-b">
+            <tr className="text-left">
+              <th className="p-3">Name</th>
+              <th className="p-3">Email</th>
+              <th className="p-3">Joined</th>
+              <th className="p-3">User ID</th>
             </tr>
           </thead>
           <tbody>
-            {(tenants ?? []).map((t:any) => (
-              <tr key={t.user_id} className="border-t">
-                <td className="p-3">{t.email}</td>
-                <td className="p-3">{t.role}</td>
-                <td className="p-3">{new Date(t.created_at).toLocaleString()}</td>
+            {rows.map(r => (
+              <tr key={r.user_id} className="border-b">
+                <td className="p-3">{r.full_name ?? '—'}</td>
+                <td className="p-3">{r.email ?? '—'}</td>
+                <td className="p-3">{new Date(r.created_at).toLocaleString()}</td>
+                <td className="p-3">{r.user_id}</td>
               </tr>
             ))}
+            {!rows.length && (
+              <tr><td className="p-3" colSpan={4}>No tenants yet.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
-    </section>
-  )
+    </div>
+  );
 }
