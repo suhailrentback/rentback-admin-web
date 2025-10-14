@@ -17,18 +17,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang={lang} dir={dir} suppressHydrationWarning>
       <body>
-        {/* Global focus ring */}
+        {/* Global a11y styles: focus ring + reduced motion */}
         <style
           dangerouslySetInnerHTML={{
             __html: `
               :focus-visible { outline: 2px solid #10b981; outline-offset: 2px; }
+              @media (prefers-reduced-motion: reduce) {
+                *, *::before, *::after { animation: none !important; transition: none !important; }
+              }
             `,
           }}
         />
         <I18nProvider initialLang={lang}>
           <SkipLink />
           <FloatingLangSwitch />
-          <main id="main">{children}</main>
+          <main id="main" role="main">{children}</main>
         </I18nProvider>
       </body>
     </html>
