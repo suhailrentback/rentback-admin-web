@@ -1,7 +1,7 @@
 // app/layout.tsx
 import type { Metadata } from 'next';
 import { getLangFromCookies } from '@/lib/i18n/server';
-import { I18nProvider } from '@/lib/i18n';
+import { I18nProvider } from '@/lib/i18n/index';
 import FloatingLangSwitch from '@/components/FloatingLangSwitch';
 
 export const metadata: Metadata = {
