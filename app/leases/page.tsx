@@ -1,54 +1,87 @@
-// ADMIN /app/leases/page.tsx
-import { createServerSupabase } from '@/lib/supabase/server'
+// rentback-admin-web/app/leases/page.tsx
+'use client';
 
-export const dynamic = 'force-dynamic'
+import { useEffect, useState } from 'react';
+import { getSupabaseBrowser } from '@/lib/supabaseClient';
 
-export default async function LeasesList() {
-  const supabase = createServerSupabase()
-  const { data: me } = await supabase.auth.getUser()
-  if (!me?.user) {
-    return <div className="max-w-3xl mx-auto py-12">Please sign in.</div>
-  }
+type LeaseRow = {
+  id: string;
+  status: 'ACTIVE'|'ENDED'|'PENDING';
+  start_date: string | null;
+  end_date: string | null;
+  monthly_rent: number;
+  tenant: { full_name: string | null; email: string | null } | null;
+  unit: { unit_number: string; property: { name: string | null; address: string | null } | null } | null;
+};
 
-  const { data: leases } = await supabase
-    .from('lease')
-    .select(`
-      id, start_date, end_date, rent_amount, status, created_at,
-      tenant:tenant_id ( email ),
-      unit:unit_id ( unit_number, property:property_id ( name ) )
-    `)
-    .order('created_at', { ascending: false })
-    .limit(50)
+export default function LeasesPage() {
+  const supabase = getSupabaseBrowser();
+  const [rows, setRows] = useState<LeaseRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string|null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data: sess } = await supabase.auth.getSession();
+      if (!sess?.session) { setError('Please sign in'); setLoading(false); return; }
+
+      const { data, error } = await supabase
+        .from('lease')
+        .select(`
+          id, status, start_date, end_date, monthly_rent,
+          tenant:tenant_id ( full_name, email ),
+          unit:unit_id (
+            unit_number,
+            property:property_id ( name, address )
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) setError(error.message);
+      else setRows((data ?? []) as unknown as LeaseRow[]);
+      setLoading(false);
+    })();
+  }, [supabase]);
+
+  if (loading) return <div className="p-6">Loading leases…</div>;
+  if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
 
   return (
-    <section className="max-w-6xl mx-auto py-12">
-      <h1 className="text-2xl font-bold mb-4">Leases</h1>
-      <div className="rounded-xl border overflow-auto">
-        <table className="w-full text-sm min-w-[720px]">
-          <thead className="bg-black/5">
-            <tr>
-              <th className="text-left p-3">Property</th>
-              <th className="text-left p-3">Unit</th>
-              <th className="text-left p-3">Tenant</th>
-              <th className="text-left p-3">Rent</th>
-              <th className="text-left p-3">Dates</th>
-              <th className="text-left p-3">Status</th>
+    <div className="p-6 space-y-4">
+      <h1 className="text-2xl font-semibold">Leases</h1>
+      <div className="rounded-2xl border overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="border-b">
+            <tr className="text-left">
+              <th className="p-3">Tenant</th>
+              <th className="p-3">Property / Unit</th>
+              <th className="p-3">Status</th>
+              <th className="p-3">Start</th>
+              <th className="p-3">End</th>
+              <th className="p-3">Monthly Rent</th>
+              <th className="p-3">Lease ID</th>
             </tr>
           </thead>
           <tbody>
-            {(leases ?? []).map((l:any) => (
-              <tr key={l.id} className="border-t">
-                <td className="p-3">{l.unit?.property?.name}</td>
-                <td className="p-3">{l.unit?.unit_number}</td>
-                <td className="p-3">{l.tenant?.email}</td>
-                <td className="p-3">Rs {Number(l.rent_amount).toLocaleString()}</td>
-                <td className="p-3">{l.start_date} → {l.end_date ?? '—'}</td>
-                <td className="p-3">{l.status}</td>
+            {rows.map(r => (
+              <tr key={r.id} className="border-b">
+                <td className="p-3">{r.tenant?.full_name ?? '—'}<div className="text-xs opacity-70">{r.tenant?.email ?? ''}</div></td>
+                <td className="p-3">
+                  {r.unit?.property?.name ?? '—'}<div className="text-xs opacity-70">{r.unit?.unit_number ?? ''}</div>
+                </td>
+                <td className="p-3">{r.status}</td>
+                <td className="p-3">{r.start_date ?? '—'}</td>
+                <td className="p-3">{r.end_date ?? '—'}</td>
+                <td className="p-3">{r.monthly_rent}</td>
+                <td className="p-3">{r.id}</td>
               </tr>
             ))}
+            {!rows.length && (
+              <tr><td className="p-3" colSpan={7}>No leases yet.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
-    </section>
-  )
+    </div>
+  );
 }
