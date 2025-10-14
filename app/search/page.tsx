@@ -43,26 +43,28 @@ export default function AdminSearchPage() {
     <div className="p-6 space-y-4">
       <h1 className="text-2xl font-semibold">{t('search.title')}</h1>
       <form onSubmit={runSearch} className="flex gap-2 max-w-2xl">
+        <label className="sr-only" htmlFor="admin-search">{t('search.title')}</label>
         <input
+          id="admin-search"
           className="flex-1 rounded-lg border px-3 py-2"
           placeholder={t('search.placeholder')}
           value={q}
           onChange={e=>setQ(e.target.value)}
         />
-        <button className="rounded-lg border px-4 py-2">
+        <button className="rounded-lg border px-4 py-2" aria-busy={loading}>
           {loading ? t('search.searching') : t('search.search')}
         </button>
       </form>
 
-      <div className="rounded-2xl border overflow-x-auto">
+      <div className="rounded-2xl border overflow-x-auto" aria-live="polite" role="status">
         <table className="min-w-full text-sm">
           <thead className="border-b">
             <tr className="text-left">
-              <th className="p-3">{t('search.when')}</th>
-              <th className="p-3">{t('search.kind')}</th>
-              <th className="p-3">{t('search.titleCol')}</th>
-              <th className="p-3">{t('search.subtitle')}</th>
-              <th className="p-3">{t('search.id')}</th>
+              <th scope="col" className="p-3">{t('search.when')}</th>
+              <th scope="col" className="p-3">{t('search.kind')}</th>
+              <th scope="col" className="p-3">{t('search.titleCol')}</th>
+              <th scope="col" className="p-3">{t('search.subtitle')}</th>
+              <th scope="col" className="p-3">{t('search.id')}</th>
             </tr>
           </thead>
           <tbody>
@@ -80,7 +82,7 @@ export default function AdminSearchPage() {
         </table>
       </div>
 
-      {error && <div className="text-red-600 text-sm">{t('common.error')}: {error}</div>}
+      {error && <div className="text-red-600 text-sm" role="alert" aria-live="assertive">{t('common.error')}: {error}</div>}
     </div>
   );
 }
