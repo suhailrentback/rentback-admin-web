@@ -1,23 +1,42 @@
 // lib/supabase/server.ts
-// Canonical Supabase helpers for server components and route handlers.
-// Keep this file at the repo root under /lib/supabase/.
-
 import { cookies } from "next/headers";
-import {
-  createServerComponentClient,
-  createRouteHandlerClient,
-} from "@supabase/auth-helpers-nextjs";
-// We avoid strict generics here to prevent "GenericSchema" vs "public" TS friction.
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/**
+ * Server Component helper (for app/**/page.tsx, app/**/layout.tsx)
+ * Keep this comment simple to avoid SWC parsing quirks.
+ */
 export function createServerSupabase(): SupabaseClient {
-  return createServerComponentClient({ cookies }) as unknown as SupabaseClient;
+  const store = cookies();
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return store.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          store.set({ name, value, ...options });
+        },
+        remove(name: string, options: CookieOptions) {
+          store.set({ name, value: "", ...options, maxAge: 0 });
+        },
+      },
+    }
+  ) as unknown as SupabaseClient;
 }
 
+/** Route Handler helper (for app/**/route.ts files) */
 export function createRouteSupabase(): SupabaseClient {
-  return createRouteHandlerClient({ cookies }) as unknown as SupabaseClient;
+  // In our setup, route handlers can share the same adapter safely.
+  return createServerSupabase();
 }
 
-// Friendly aliases kept for older imports across the app code.
+/** Back-compat aliases used in older code */
 export const supabaseServer = createServerSupabase;
 export const supabaseRoute = createRouteSupabase;
+
+export type { SupabaseClient } from "@supabase/supabase-js";
