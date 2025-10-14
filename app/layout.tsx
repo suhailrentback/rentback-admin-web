@@ -1,27 +1,42 @@
-// ADMIN: place in rentback-admin-web/app/layout.tsx
-import "@/app/globals.css";
-import type { Metadata } from "next";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
-import { getLang, getTheme, getDir } from "@/lib/i18n";
+// app/layout.tsx
+import type { Metadata } from 'next';
+import { getLangFromCookies } from '@/lib/i18n/server';
+import { I18nProvider } from '@/lib/i18n';
+import FloatingLangSwitch from '@/components/FloatingLangSwitch';
 
 export const metadata: Metadata = {
-  title: "RentBack Admin",
-  description: "Secure operations console.",
+  title: 'RentBack Admin',
+  description: 'RentBack Admin',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const lang = getLang();
-  const theme = getTheme();
-  const dir = getDir(lang);
+  const lang = getLangFromCookies();
+  const dir = lang === 'ur' ? 'rtl' : 'ltr';
 
   return (
-    <html lang={lang} dir={dir} className={theme === "dark" ? "dark" : undefined} suppressHydrationWarning>
-      <body className="min-h-screen bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 antialiased">
-        {/* Header across app */}
-        <Header />
-        <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
-        <Footer />
+    <html lang={lang} dir={dir} suppressHydrationWarning>
+      <body>
+        {/* A11y: Skip link */}
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:shadow"
+        >
+          Skip to main content
+        </a>
+
+        {/* Global focus ring */}
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              :focus-visible { outline: 2px solid #10b981; outline-offset: 2px; }
+            `,
+          }}
+        />
+
+        <I18nProvider initialLang={lang}>
+          <FloatingLangSwitch />
+          <main id="main">{children}</main>
+        </I18nProvider>
       </body>
     </html>
   );
