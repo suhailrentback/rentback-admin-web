@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getSupabaseBrowser } from '@/lib/supabaseClient';
 
-type AuditRow = {
+interface AuditRow {
   id?: string;
   created_at?: string;
   actor_id?: string | null;
@@ -13,24 +13,27 @@ type AuditRow = {
   record_pk?: string | null;
   old_data?: any | null;
   new_data?: any | null;
-  -- // Note: if your audit schema differs, we safely ignore missing fields at runtime
-};
+}
 
 export default function AuditPage() {
   const supabase = getSupabaseBrowser();
-  const [rows, setRows] = useState<any[]>([]);
-  const [error, setError] = useState<string|null>(null);
+  const [rows, setRows] = useState<AuditRow[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tableFilter, setTableFilter] = useState<string>('');
-  const [actorFilter, setActorFilter] = useState<string>('');
+  const [tableFilter, setTableFilter] = useState('');
+  const [actorFilter, setActorFilter] = useState('');
 
   async function load() {
     setError(null);
-    // Fetch latest 200 audit entries; adapt to your audit_log shape
-    let query = supabase.from('audit_log').select('*').order('created_at', { ascending: false }).limit(200) as any;
-    const { data, error } = await query;
+    // Pull latest 200 rows; if your audit table has different columns, we still render safely.
+    const { data, error } = await supabase
+      .from('audit_log')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(200);
+
     if (error) { setError(error.message); return; }
-    setRows(data || []);
+    setRows((data ?? []) as AuditRow[]);
   }
 
   useEffect(() => {
@@ -40,20 +43,23 @@ export default function AuditPage() {
       await load();
       setLoading(false);
     })();
-  }, [supabase]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtered = useMemo(() => {
+    const tab = tableFilter.trim().toLowerCase();
+    const act = actorFilter.trim().toLowerCase();
     return rows.filter(r => {
-      const okTable = tableFilter ? (String(r.table_name || '').toLowerCase().includes(tableFilter.toLowerCase())) : true;
-      const okActor = actorFilter ? (String(r.actor_id || '').toLowerCase().includes(actorFilter.toLowerCase())) : true;
+      const okTable = tab ? String(r.table_name ?? '').toLowerCase().includes(tab) : true;
+      const okActor = act ? String(r.actor_id ?? '').toLowerCase().includes(act) : true;
       return okTable && okActor;
     });
   }, [rows, tableFilter, actorFilter]);
 
-  function toCsv(d: any[]): string {
+  function toCsv(d: AuditRow[]): string {
     const header = ['created_at','table_name','operation','actor_id','record_pk'];
     const esc = (s: any) => String(s ?? '').replace(/"/g, '""');
-    const body = d.map(r => header.map(h => `"${esc(r[h])}"`).join(',')).join('\n');
+    const body = d.map(r => header.map(h => `"${(esc as any)( (r as any)[h] )}"`).join(',')).join('\n');
     return header.join(',') + '\n' + body + '\n';
   }
 
@@ -73,12 +79,21 @@ export default function AuditPage() {
   return (
     <div className="p-6 space-y-4">
       <h1 className="text-2xl font-semibold">Audit Log</h1>
+
       <div className="flex flex-wrap gap-3 items-end">
         <label className="text-sm">Table<br/>
-          <input className="rounded-lg border px-3 py-2" value={tableFilter} onChange={e=>setTableFilter(e.target.value)} />
+          <input
+            className="rounded-lg border px-3 py-2"
+            value={tableFilter}
+            onChange={e=>setTableFilter(e.target.value)}
+          />
         </label>
         <label className="text-sm">Actor ID<br/>
-          <input className="rounded-lg border px-3 py-2" value={actorFilter} onChange={e=>setActorFilter(e.target.value)} />
+          <input
+            className="rounded-lg border px-3 py-2"
+            value={actorFilter}
+            onChange={e=>setActorFilter(e.target.value)}
+          />
         </label>
         <button onClick={exportCsv} className="rounded-lg border px-4 py-2">Export CSV</button>
       </div>
@@ -96,8 +111,8 @@ export default function AuditPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r: any) => (
-              <tr key={r.id ?? `${r.created_at}-${r.record_pk}`}>
+            {filtered.map((r, idx) => (
+              <tr key={r.id ?? `${r.created_at}-${r.record_pk}-${idx}`} className="border-b">
                 <td className="p-3">{r.created_at ? new Date(r.created_at).toLocaleString() : '—'}</td>
                 <td className="p-3">{r.table_name ?? '—'}</td>
                 <td className="p-3">{r.operation ?? '—'}</td>
@@ -106,7 +121,9 @@ export default function AuditPage() {
                 <td className="p-3">
                   <details>
                     <summary className="cursor-pointer">View</summary>
-                    <pre className="text-xs whitespace-pre-wrap">{JSON.stringify({ old: r.old_data, @new: r.new_data }, null, 2)}</pre>
+                    <pre className="text-xs whitespace-pre-wrap">
+{JSON.stringify({ old: (r as any).old_data, new: (r as any).new_data }, null, 2)}
+                    </pre>
                   </details>
                 </td>
               </tr>
