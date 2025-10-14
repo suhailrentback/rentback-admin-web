@@ -1,12 +1,12 @@
-// rentback-admin-web/lib/supabaseClient.ts
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+// lib/supabase/client.ts
+import { getSupabaseBrowser } from "../supabaseClient";
 
-let client: SupabaseClient | null = null;
+/**
+ * Minimal compat shim so imports like:
+ *   import { supabaseClient } from "@/lib/supabase/client"
+ * continue to work without touching components.
+ */
+const supabaseClient = getSupabaseBrowser();
 
-export function getSupabaseBrowser(): SupabaseClient {
-  if (client) return client;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-  client = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true } });
-  return client;
-}
+export { supabaseClient, getSupabaseBrowser };
+export default supabaseClient;
