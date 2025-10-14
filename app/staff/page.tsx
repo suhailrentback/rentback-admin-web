@@ -22,6 +22,7 @@ export default function StaffPage() {
   const [found, setFound] = useState<UserRow[]>([]);
   const [error, setError] = useState<string|null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
 
   async function loadStaff() {
     setError(null);
@@ -45,7 +46,7 @@ export default function StaffPage() {
   }, []);
 
   async function search() {
-    setError(null);
+    setError(null); setStatus(null);
     const res = await supabase
       .from('profile')
       .select('user_id, full_name, email, role, last_login')
@@ -56,7 +57,7 @@ export default function StaffPage() {
   }
 
   async function call(path: string, userId: string) {
-    setBusy(userId); setError(null);
+    setBusy(userId); setError(null); setStatus(null);
     try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess?.session?.access_token ?? '';
@@ -68,6 +69,7 @@ export default function StaffPage() {
       if (!res.ok || (j && j.error)) throw new Error(j.error || 'Action failed');
       await loadStaff();
       await search();
+      setStatus('OK'); // generic status for SRs
     } catch (e:any) {
       setError(e.message);
     } finally {
@@ -81,8 +83,10 @@ export default function StaffPage() {
 
       <div className="rounded-2xl border p-4 space-y-3 max-w-2xl">
         <div className="font-medium">{t('staff.findUser')}</div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-start">
+          <label className="sr-only" htmlFor="staff-q">{t('staff.findUser')}</label>
           <input
+            id="staff-q"
             className="flex-1 rounded-lg border px-3 py-2"
             placeholder={t('staff.searchPlaceholder')}
             value={query}
@@ -92,16 +96,17 @@ export default function StaffPage() {
             {t('staff.search')}
           </button>
         </div>
+        <div aria-live="polite" role="status" className="sr-only">{status ?? ''}</div>
 
         {!!found.length && (
           <div className="rounded-xl border">
             <table className="min-w-full text-sm">
               <thead className="border-b">
                 <tr className="text-left">
-                  <th className="p-3">{t('staff.user')}</th>
-                  <th className="p-3">{t('staff.role')}</th>
-                  <th className="p-3">{t('staff.lastLogin')}</th>
-                  <th className="p-3">{t('staff.actions')}</th>
+                  <th scope="col" className="p-3">{t('staff.user')}</th>
+                  <th scope="col" className="p-3">{t('staff.role')}</th>
+                  <th scope="col" className="p-3">{t('staff.lastLogin')}</th>
+                  <th scope="col" className="p-3">{t('staff.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -118,6 +123,8 @@ export default function StaffPage() {
                       {u.role === 'STAFF' || u.role === 'ADMIN' ? (
                         <button
                           disabled={busy===u.user_id}
+                          aria-disabled={busy===u.user_id}
+                          aria-busy={busy===u.user_id}
                           onClick={()=>call('/api/staff/:userId/demote', u.user_id)}
                           className="rounded-lg border px-3 py-1"
                         >
@@ -126,6 +133,8 @@ export default function StaffPage() {
                       ) : (
                         <button
                           disabled={busy===u.user_id}
+                          aria-disabled={busy===u.user_id}
+                          aria-busy={busy===u.user_id}
                           onClick={()=>call('/api/staff/:userId/promote', u.user_id)}
                           className="rounded-lg border px-3 py-1"
                         >
@@ -134,6 +143,8 @@ export default function StaffPage() {
                       )}
                       <button
                         disabled={busy===u.user_id}
+                        aria-disabled={busy===u.user_id}
+                        aria-busy={busy===u.user_id}
                         onClick={()=>call('/api/staff/:userId/signout', u.user_id)}
                         className="rounded-lg border px-3 py-1"
                       >
@@ -154,10 +165,10 @@ export default function StaffPage() {
         <table className="min-w-full text-sm">
           <thead className="border-b">
             <tr className="text-left">
-              <th className="p-3">{t('staff.user')}</th>
-              <th className="p-3">{t('staff.user')}</th>
-              <th className="p-3">{t('staff.role')}</th>
-              <th className="p-3">{t('staff.lastLogin')}</th>
+              <th scope="col" className="p-3">{t('staff.user')}</th>
+              <th scope="col" className="p-3">{t('staff.user')}</th>
+              <th scope="col" className="p-3">{t('staff.role')}</th>
+              <th scope="col" className="p-3">{t('staff.lastLogin')}</th>
             </tr>
           </thead>
           <tbody>
@@ -174,7 +185,7 @@ export default function StaffPage() {
         </table>
       </div>
 
-      {error && <div className="text-red-600 text-sm">{t('common.error')}: {error}</div>}
+      {error && <div className="text-red-600 text-sm" role="alert" aria-live="assertive">{t('common.error')}: {error}</div>}
     </div>
   );
 }
