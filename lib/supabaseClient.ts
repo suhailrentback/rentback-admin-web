@@ -1,17 +1,30 @@
-// lib/supabase/client.ts
-import {
-  getSupabaseBrowser,
-  supabase as baseClient,
-} from "../supabaseClient";
+// lib/supabaseClient.ts
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
+let browserClient: SupabaseClient | null = null;
+const isBrowser = typeof window !== "undefined";
 
 /**
- * Back-compat shim so imports like:
- *   import { supabaseClient } from "@/lib/supabase/client"
- * keep working without touching pages/components.
+ * Browser-side Supabase client (singleton).
+ * - Session features only in browser (SSR-safe).
+ * - If envs are missing, runtime calls will error clearly.
  */
-export const supabaseClient = baseClient;
-export const createBrowserSupabase = getSupabaseBrowser;
-export { getSupabaseBrowser };
+export function getSupabaseBrowser(): SupabaseClient {
+  if (browserClient) return browserClient;
 
-/** Optional default export for extra compatibility */
-export default supabaseClient;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+
+  browserClient = createClient(url, anon, {
+    auth: {
+      persistSession: isBrowser,
+      autoRefreshToken: isBrowser,
+      detectSessionInUrl: isBrowser,
+    },
+  });
+
+  return browserClient;
+}
+
+/** Back-compat: some pages import { supabase } from "@/lib/supabaseClient" */
+export const supabase: SupabaseClient = getSupabaseBrowser();
