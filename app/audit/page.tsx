@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { getSupabaseBrowser } from '@/lib/supabaseClient';
+import { useI18n } from '@/lib/i18n/index';
 
 interface AuditRow {
   id?: string;
@@ -17,6 +18,8 @@ interface AuditRow {
 
 export default function AuditPage() {
   const supabase = getSupabaseBrowser();
+  const { t } = useI18n();
+
   const [rows, setRows] = useState<AuditRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,13 +28,11 @@ export default function AuditPage() {
 
   async function load() {
     setError(null);
-    // Pull latest 200 rows; if your audit table has different columns, we still render safely.
     const { data, error } = await supabase
       .from('audit_log')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(200);
-
     if (error) { setError(error.message); return; }
     setRows((data ?? []) as AuditRow[]);
   }
@@ -39,7 +40,7 @@ export default function AuditPage() {
   useEffect(() => {
     (async () => {
       const { data: sess } = await supabase.auth.getSession();
-      if (!sess?.session) { setError('Please sign in'); setLoading(false); return; }
+      if (!sess?.session) { setError(t('common.signInRequired')); setLoading(false); return; }
       await load();
       setLoading(false);
     })();
@@ -59,7 +60,7 @@ export default function AuditPage() {
   function toCsv(d: AuditRow[]): string {
     const header = ['created_at','table_name','operation','actor_id','record_pk'];
     const esc = (s: any) => String(s ?? '').replace(/"/g, '""');
-    const body = d.map(r => header.map(h => `"${(esc as any)( (r as any)[h] )}"`).join(',')).join('\n');
+    const body = d.map(r => header.map(h => `"${(esc as any)((r as any)[h])}"`).join(',')).join('\n');
     return header.join(',') + '\n' + body + '\n';
   }
 
@@ -73,41 +74,45 @@ export default function AuditPage() {
     URL.revokeObjectURL(a.href);
   }
 
-  if (loading) return <div className="p-6">Loading audit…</div>;
-  if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
+  if (loading) return <div className="p-6">{t('common.loading')}</div>;
+  if (error) return <div className="p-6 text-red-600">{t('common.error')}: {error}</div>;
 
   return (
     <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-semibold">Audit Log</h1>
+      <h1 className="text-2xl font-semibold">{t('audit.title')}</h1>
 
       <div className="flex flex-wrap gap-3 items-end">
-        <label className="text-sm">Table<br/>
+        <label className="text-sm">
+          {t('audit.tableFilter')}<br/>
           <input
             className="rounded-lg border px-3 py-2"
             value={tableFilter}
             onChange={e=>setTableFilter(e.target.value)}
           />
         </label>
-        <label className="text-sm">Actor ID<br/>
+        <label className="text-sm">
+          {t('audit.actorFilter')}<br/>
           <input
             className="rounded-lg border px-3 py-2"
             value={actorFilter}
             onChange={e=>setActorFilter(e.target.value)}
           />
         </label>
-        <button onClick={exportCsv} className="rounded-lg border px-4 py-2">Export CSV</button>
+        <button onClick={exportCsv} className="rounded-lg border px-4 py-2">
+          {t('audit.export')}
+        </button>
       </div>
 
       <div className="rounded-2xl border overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead className="border-b">
             <tr className="text-left">
-              <th className="p-3">Time</th>
-              <th className="p-3">Table</th>
-              <th className="p-3">Op</th>
-              <th className="p-3">Actor</th>
-              <th className="p-3">PK</th>
-              <th className="p-3">Changes</th>
+              <th className="p-3">{t('audit.time')}</th>
+              <th className="p-3">{t('audit.table')}</th>
+              <th className="p-3">{t('audit.op')}</th>
+              <th className="p-3">{t('audit.actor')}</th>
+              <th className="p-3">{t('audit.pk')}</th>
+              <th className="p-3">{t('audit.changes')}</th>
             </tr>
           </thead>
           <tbody>
@@ -120,7 +125,7 @@ export default function AuditPage() {
                 <td className="p-3">{r.record_pk ?? '—'}</td>
                 <td className="p-3">
                   <details>
-                    <summary className="cursor-pointer">View</summary>
+                    <summary className="cursor-pointer">{t('audit.view')}</summary>
                     <pre className="text-xs whitespace-pre-wrap">
 {JSON.stringify({ old: (r as any).old_data, new: (r as any).new_data }, null, 2)}
                     </pre>
@@ -128,7 +133,7 @@ export default function AuditPage() {
                 </td>
               </tr>
             ))}
-            {!filtered.length && <tr><td className="p-3" colSpan={6}>No audit rows</td></tr>}
+            {!filtered.length && <tr><td className="p-3" colSpan={6}>{t('audit.noRows')}</td></tr>}
           </tbody>
         </table>
       </div>
