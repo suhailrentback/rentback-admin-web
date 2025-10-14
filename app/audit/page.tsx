@@ -74,8 +74,8 @@ export default function AuditPage() {
     URL.revokeObjectURL(a.href);
   }
 
-  if (loading) return <div className="p-6">{t('common.loading')}</div>;
-  if (error) return <div className="p-6 text-red-600">{t('common.error')}: {error}</div>;
+  if (loading) return <div className="p-6" role="status" aria-live="polite">{t('common.loading')}</div>;
+  if (error) return <div className="p-6 text-red-600" role="alert" aria-live="assertive">{t('common.error')}: {error}</div>;
 
   return (
     <div className="p-6 space-y-4">
@@ -107,12 +107,12 @@ export default function AuditPage() {
         <table className="min-w-full text-sm">
           <thead className="border-b">
             <tr className="text-left">
-              <th className="p-3">{t('audit.time')}</th>
-              <th className="p-3">{t('audit.table')}</th>
-              <th className="p-3">{t('audit.op')}</th>
-              <th className="p-3">{t('audit.actor')}</th>
-              <th className="p-3">{t('audit.pk')}</th>
-              <th className="p-3">{t('audit.changes')}</th>
+              <th scope="col" className="p-3">{t('audit.time')}</th>
+              <th scope="col" className="p-3">{t('audit.table')}</th>
+              <th scope="col" className="p-3">{t('audit.op')}</th>
+              <th scope="col" className="p-3">{t('audit.actor')}</th>
+              <th scope="col" className="p-3">{t('audit.pk')}</th>
+              <th scope="col" className="p-3">{t('audit.changes')}</th>
             </tr>
           </thead>
           <tbody>
