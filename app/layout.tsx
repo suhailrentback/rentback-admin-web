@@ -1,4 +1,5 @@
 // app/layout.tsx
+import './globals.css';
 import type { Metadata } from 'next';
 import { getLangFromCookies } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n/index';
