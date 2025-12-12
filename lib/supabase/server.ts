@@ -1,7 +1,6 @@
 // lib/supabase/server.ts
 // Unified Supabase helpers for Server Components & Route Handlers.
-// Works with @supabase/auth-helpers-nextjs and accepts either
-// a cookies() function OR a ReadonlyRequestCookies instance.
+// Accepts either a cookies() function OR a ReadonlyRequestCookies instance.
 
 import { cookies as nextCookies } from "next/headers";
 import {
@@ -9,7 +8,7 @@ import {
   createRouteHandlerClient,
 } from "@supabase/auth-helpers-nextjs";
 
-// If you have generated types, replace `any` with your Database type.
+// If you generated DB types, replace `any` with your Database type.
 type Database = any;
 
 // Accept either: () => ReadonlyRequestCookies OR ReadonlyRequestCookies
@@ -21,7 +20,7 @@ type CookiesArg =
 function asCookiesProvider(arg?: CookiesArg) {
   if (!arg) return nextCookies;
   if (typeof arg === "function") {
-    // already a provider
+    // already a provider () => ReadonlyRequestCookies
     return arg as typeof nextCookies;
   }
   // wrap the instance into a provider
@@ -47,4 +46,9 @@ export function createClient(arg?: CookiesArg) {
   return createServerSupabase(arg);
 }
 
+/** Legacy alias names to satisfy older imports */
+export { createServerSupabase as supabaseServer };
+export { createRouteSupabase as supabaseRoute };
+
+/** Default export kept for convenience */
 export default createServerSupabase;
