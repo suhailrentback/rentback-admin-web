@@ -1,68 +1,31 @@
 // lib/supabase/server.ts
-// Unified Supabase helpers for Server Components, Server Actions, and Route Handlers.
-// Exports: createClient, createServerSupabase, createRouteSupabase
+// Unified Supabase helpers for Server Components & Route Handlers.
+// Uses @supabase/auth-helpers-nextjs (already in this repo).
 
-import { cookies as nextCookies } from "next/headers";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import {
+  createServerComponentClient,
+  createRouteHandlerClient,
+  type CookieOptions,
+} from "@supabase/auth-helpers-nextjs";
 
-// If you have generated DB types, import them here.
-// import type { Database } from "@/lib/supabase/types";
+// If you have generated DB types, import them; otherwise keep `any`.
 type Database = any;
 
-function hasEnv(url?: string, key?: string) {
-  return !!url && !!key;
-}
-
-function makeClient(cookiesStore = nextCookies()) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!hasEnv(supabaseUrl, supabaseKey)) {
-    throw new Error(
-      "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY in environment."
-    );
-  }
-
-  return createServerClient<Database>(supabaseUrl!, supabaseKey!, {
-    cookies: {
-      get(name: string) {
-        try {
-          return cookiesStore.get(name)?.value;
-        } catch {
-          return undefined;
-        }
-      },
-      set(name: string, value: string, options: CookieOptions) {
-        try {
-          cookiesStore.set({ name, value, ...options });
-        } catch {
-          // Some edge contexts may restrict writing cookies; ignore.
-        }
-      },
-      remove(name: string, options: CookieOptions) {
-        try {
-          cookiesStore.set({ name, value: "", ...options, maxAge: 0 });
-        } catch {
-          // Ignore if restricted.
-        }
-      },
-    },
-  });
-}
-
-/** Back-compat alias used by pages/components */
-export function createClient(cookiesStore = nextCookies()) {
-  return makeClient(cookiesStore);
-}
-
-/** For Server Components / server actions */
+/** Server Components / Server Actions */
 export function createServerSupabase() {
-  return makeClient(nextCookies());
+  // cookies() comes from next/headers and is compatible with the helpers
+  return createServerComponentClient<Database>({ cookies });
 }
 
-/** For Route Handlers in app/api/* */
-export function createRouteSupabase(cookiesStore = nextCookies()) {
-  return makeClient(cookiesStore);
+/** Route Handlers in app/api/* */
+export function createRouteSupabase() {
+  return createRouteHandlerClient<Database>({ cookies });
+}
+
+/** Back-compat alias some files import */
+export function createClient() {
+  return createServerSupabase();
 }
 
 export default createServerSupabase;
