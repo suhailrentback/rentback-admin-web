@@ -1,54 +1,41 @@
 // lib/supabase/server.ts
-// Unified Supabase helpers for Server Components & Route Handlers.
-// Accepts either a cookies() function OR a ReadonlyRequestCookies instance.
+import { cookies as nextCookies, type ReadonlyRequestCookies } from "next/headers";
+import { createServerClient, type CookieOptions } from "@supabase/auth-helpers-nextjs";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { cookies as nextCookies } from "next/headers";
-import {
-  createServerComponentClient,
-  createRouteHandlerClient,
-} from "@supabase/auth-helpers-nextjs";
-
-// If you generated DB types, replace `any` with your Database type.
-type Database = any;
-
-// Accept either: () => ReadonlyRequestCookies OR ReadonlyRequestCookies
-type CookiesArg =
-  | ReturnType<typeof nextCookies>
-  | typeof nextCookies
-  | undefined;
-
-function asCookiesProvider(arg?: CookiesArg) {
-  if (!arg) return nextCookies;
-  if (typeof arg === "function") {
-    // already a provider () => ReadonlyRequestCookies
-    return arg as typeof nextCookies;
-  }
-  // wrap the instance into a provider
-  return () => arg as ReturnType<typeof nextCookies>;
+function makeCookieAdapter(getStore: () => ReadonlyRequestCookies) {
+  return {
+    get(name: string) {
+      return getStore().get(name)?.value;
+    },
+    set(name: string, value: string, options: CookieOptions) {
+      // Next.js server cookie setter (maxAge in seconds)
+      // @ts-expect-error set supports this shape in App Router
+      getStore().set({ name, value, ...options });
+    },
+    remove(name: string, options: CookieOptions) {
+      // @ts-expect-error set supports this shape in App Router
+      getStore().set({ name, value: "", ...options, maxAge: 0 });
+    },
+  };
 }
 
-/** For Server Components / Server Actions */
-export function createServerSupabase(arg?: CookiesArg) {
-  return createServerComponentClient<Database>({
-    cookies: asCookiesProvider(arg),
-  });
+/** For Server Components / Pages */
+export function createServerSupabase(): SupabaseClient {
+  const adapter = makeCookieAdapter(() => nextCookies());
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: adapter }
+  );
 }
 
-/** For Route Handlers in app/api/* */
-export function createRouteSupabase(arg?: CookiesArg) {
-  return createRouteHandlerClient<Database>({
-    cookies: asCookiesProvider(arg),
-  });
+/** For Route Handlers (pass a getter: () => cookies()) */
+export function createRouteSupabase(getCookies: () => ReadonlyRequestCookies): SupabaseClient {
+  const adapter = makeCookieAdapter(getCookies);
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: adapter }
+  );
 }
-
-/** Back-compat alias used across files */
-export function createClient(arg?: CookiesArg) {
-  return createServerSupabase(arg);
-}
-
-/** Legacy alias names to satisfy older imports */
-export { createServerSupabase as supabaseServer };
-export { createRouteSupabase as supabaseRoute };
-
-/** Default export kept for convenience */
-export default createServerSupabase;
