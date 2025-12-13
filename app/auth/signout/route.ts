@@ -1,21 +1,21 @@
 // app/auth/signout/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { createRouteSupabase } from "../../../lib/supabase/server";
+import { cookies } from "next/headers";
+import { createRouteSupabase } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest) {
-  const supabase = createRouteSupabase();
+export async function GET(_req: NextRequest) {
+  // Pass a cookies getter as required by the helper signature
+  const supabase = createRouteSupabase(() => cookies());
+
   try {
     await supabase.auth.signOut();
   } catch {
-    // ignore: signOut is best-effort
+    // ignore signout errors; proceed to redirect
   }
-  const url = new URL("/", req.url);
-  const res = NextResponse.redirect(url);
 
-  // Clear our role cookie too
-  res.cookies.set("rb_role", "", { path: "/", maxAge: 0 });
-
-  return res;
+  // Send user to admin home after signout
+  const target = new URL("/", process.env.SITE_URL);
+  return NextResponse.redirect(target);
 }
