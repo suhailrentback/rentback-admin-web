@@ -2,12 +2,10 @@
 export {
   createServerSupabase,
   createRouteSupabase,
+  createClient,
   supabaseServer,
   supabaseRoute,
 } from "./server";
 
-export {
-  getSupabaseBrowser as createBrowserSupabase,
-  getSupabaseBrowser,
-  supabase as supabaseClient,
-} from "../supabaseClient";
+// Optional default (mirrors server default)
+export { default } from "./server";
