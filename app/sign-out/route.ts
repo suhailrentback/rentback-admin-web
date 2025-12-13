@@ -1,11 +1,21 @@
 // app/sign-out/route.ts
-import { NextResponse } from 'next/server'
-import { createRouteSupabase } from '@/lib/supabase/server'
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { createRouteSupabase } from "@/lib/supabase/server";
 
-export const runtime = 'nodejs'
+export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const supabase = createRouteSupabase()
-  await supabase.auth.signOut()
-  return NextResponse.redirect(new URL('/', process.env.NEXT_PUBLIC_SITE_URL || 'https://admin.rentback.app'))
+  // Pass a cookies getter as required by the helper signature
+  const supabase = createRouteSupabase(() => cookies());
+
+  try {
+    await supabase.auth.signOut();
+  } catch {
+    // ignore signout errors; proceed to redirect
+  }
+
+  // Redirect to admin home after signout
+  const target = new URL("/", process.env.SITE_URL ?? "https://admin.rentback.app");
+  return NextResponse.redirect(target);
 }
