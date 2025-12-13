@@ -219,8 +219,21 @@ function Filters(props: { q: string; from: string; to: string; type: string; lim
 function Th({ children }: { children: React.ReactNode }) {
   return <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide">{children}</th>;
 }
-function Td({ children, nowrap }: { children: React.ReactNode; nowrap?: boolean }) {
-  return <td className={`px-3 py-2 align-top ${nowrap ? "whitespace-nowrap" : ""}`}>{children}</td>;
+
+function Td({
+  children,
+  nowrap,
+  className = "",
+}: {
+  children: React.ReactNode;
+  nowrap?: boolean;
+  className?: string;
+}) {
+  return (
+    <td className={`px-3 py-2 align-top ${nowrap ? "whitespace-nowrap" : ""} ${className}`.trim()}>
+      {children}
+    </td>
+  );
 }
 
 function fmt(iso: string) {
