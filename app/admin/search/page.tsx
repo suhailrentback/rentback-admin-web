@@ -1,5 +1,4 @@
 // app/admin/search/page.tsx
-import { cookies } from "next/headers";
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
 
@@ -10,7 +9,7 @@ export default async function Page({
 }) {
   const q = (searchParams?.q ?? "").trim();
 
-  const sb = await createServerSupabase(cookies);
+  const sb = await createServerSupabase();
 
   // AuthZ
   const { data: userRes } = await sb.auth.getUser();
@@ -32,45 +31,33 @@ export default async function Page({
   } = { profiles: [], invoices: [], payments: [], redemptions: [] };
 
   if (q) {
-    // Profiles (by email/name)
-    {
-      const { data } = await sb
-        .from("profiles")
-        .select("id, email, full_name, role")
-        .or([`email.ilike.%${q}%`, `full_name.ilike.%${q}%`].join(","))
-        .limit(25);
-      results.profiles = data ?? [];
-    }
+    const { data: profiles } = await sb
+      .from("profiles")
+      .select("id, email, full_name, role")
+      .or([`email.ilike.%${q}%`, `full_name.ilike.%${q}%`].join(","))
+      .limit(25);
+    results.profiles = profiles ?? [];
 
-    // Invoices (by id / status)
-    {
-      const { data } = await sb
-        .from("invoices")
-        .select("id, tenant_id, amount_cents, status, due_date")
-        .or([`id.ilike.%${q}%`, `status.ilike.%${q}%`].join(","))
-        .limit(25);
-      results.invoices = data ?? [];
-    }
+    const { data: invoices } = await sb
+      .from("invoices")
+      .select("id, tenant_id, amount_cents, status, due_date")
+      .or([`id.ilike.%${q}%`, `status.ilike.%${q}%`].join(","))
+      .limit(25);
+    results.invoices = invoices ?? [];
 
-    // Payments (by id / status)
-    {
-      const { data } = await sb
-        .from("payments")
-        .select("id, invoice_id, amount_cents, status, created_at")
-        .or([`id.ilike.%${q}%`, `status.ilike.%${q}%`].join(","))
-        .limit(25);
-      results.payments = data ?? [];
-    }
+    const { data: payments } = await sb
+      .from("payments")
+      .select("id, invoice_id, amount_cents, status, created_at")
+      .or([`id.ilike.%${q}%`, `status.ilike.%${q}%`].join(","))
+      .limit(25);
+    results.payments = payments ?? [];
 
-    // Rewards redemptions (by id / voucher)
-    {
-      const { data } = await sb
-        .from("reward_redemptions")
-        .select("id, user_id, offer_id, voucher_code, created_at")
-        .or([`id.ilike.%${q}%`, `voucher_code.ilike.%${q}%`].join(","))
-        .limit(25);
-      results.redemptions = data ?? [];
-    }
+    const { data: redemptions } = await sb
+      .from("reward_redemptions")
+      .select("id, user_id, offer_id, voucher_code, created_at")
+      .or([`id.ilike.%${q}%`, `voucher_code.ilike.%${q}%`].join(","))
+      .limit(25);
+    results.redemptions = redemptions ?? [];
   }
 
   return (
@@ -89,9 +76,7 @@ export default async function Page({
         </button>
       </form>
 
-      {!q && (
-        <p className="text-sm opacity-70">Type above and hit Search.</p>
-      )}
+      {!q && <p className="text-sm opacity-70">Type above and hit Search.</p>}
 
       {q && (
         <div className="space-y-8">
