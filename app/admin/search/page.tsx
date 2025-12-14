@@ -1,17 +1,27 @@
-// app/admin/search/page.tsx
-import Link from "next/link";
+export const dynamic = "force-dynamic";
+
 import { createServerSupabase } from "@/lib/supabase/server";
+
+type SearchParams = { q?: string; limit?: string };
+
+function isUuid(maybe: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    maybe
+  );
+}
 
 export default async function Page({
   searchParams,
 }: {
-  searchParams?: { q?: string };
+  searchParams?: SearchParams;
 }) {
-  const q = (searchParams?.q ?? "").trim();
+  const sp = searchParams ?? {};
+  const q = (sp.q ?? "").trim();
+  const limit = Math.min(Math.max(Number(sp.limit ?? 25), 1), 200);
 
   const sb = await createServerSupabase();
 
-  // AuthZ
+  // AuthZ: staff/admin only
   const { data: userRes } = await sb.auth.getUser();
   if (!userRes?.user) throw new Error("Not authenticated");
   const { data: me } = await sb
@@ -23,175 +33,340 @@ export default async function Page({
     throw new Error("Not permitted");
   }
 
-  const results: {
-    profiles: any[];
-    invoices: any[];
-    payments: any[];
-    redemptions: any[];
-  } = { profiles: [], invoices: [], payments: [], redemptions: [] };
+  let profiles: any[] = [];
+  let invoices: any[] = [];
+  let payments: any[] = [];
+  let receipts: any[] = [];
+  let redemptions: any[] = [];
 
   if (q) {
-    const { data: profiles } = await sb
-      .from("profiles")
-      .select("id, email, full_name, role")
-      .or([`email.ilike.%${q}%`, `full_name.ilike.%${q}%`].join(","))
-      .limit(25);
-    results.profiles = profiles ?? [];
+    // PROFILES
+    if (isUuid(q)) {
+      const { data } = await sb
+        .from("profiles")
+        .select("id, email, full_name, role, created_at, updated_at")
+        .eq("id", q)
+        .limit(limit);
+      profiles = data ?? [];
+    } else {
+      const { data } = await sb
+        .from("profiles")
+        .select("id, email, full_name, role, created_at, updated_at")
+        .or(`email.ilike.%${q}%,full_name.ilike.%${q}%`)
+        .limit(limit);
+      profiles = data ?? [];
+    }
 
-    const { data: invoices } = await sb
-      .from("invoices")
-      .select("id, tenant_id, amount_cents, status, due_date")
-      .or([`id.ilike.%${q}%`, `status.ilike.%${q}%`].join(","))
-      .limit(25);
-    results.invoices = invoices ?? [];
+    // INVOICES — search by id (uuid) or by status text
+    if (isUuid(q)) {
+      const { data } = await sb.from("invoices").select("*").eq("id", q).limit(limit);
+      invoices = data ?? [];
+    } else {
+      const { data } = await sb
+        .from("invoices")
+        .select("*")
+        .ilike("status", `%${q}%`)
+        .limit(limit);
+      invoices = data ?? [];
+    }
 
-    const { data: payments } = await sb
-      .from("payments")
-      .select("id, invoice_id, amount_cents, status, created_at")
-      .or([`id.ilike.%${q}%`, `status.ilike.%${q}%`].join(","))
-      .limit(25);
-    results.payments = payments ?? [];
+    // PAYMENTS — search by id (uuid) or status
+    if (isUuid(q)) {
+      const { data } = await sb.from("payments").select("*").eq("id", q).limit(limit);
+      payments = data ?? [];
+    } else {
+      const { data } = await sb
+        .from("payments")
+        .select("*")
+        .ilike("status", `%${q}%`)
+        .limit(limit);
+      payments = data ?? [];
+    }
 
-    const { data: redemptions } = await sb
-      .from("reward_redemptions")
-      .select("id, user_id, offer_id, voucher_code, created_at")
-      .or([`id.ilike.%${q}%`, `voucher_code.ilike.%${q}%`].join(","))
-      .limit(25);
-    results.redemptions = redemptions ?? [];
+    // RECEIPTS — primarily by id
+    if (isUuid(q)) {
+      const { data } = await sb.from("receipts").select("*").eq("id", q).limit(limit);
+      receipts = data ?? [];
+    } else {
+      receipts = []; // no safe text columns to search broadly
+    }
+
+    // REWARD REDEMPTIONS — by id or voucher_code
+    if (isUuid(q)) {
+      const { data } = await sb
+        .from("reward_redemptions")
+        .select("*")
+        .eq("id", q)
+        .limit(limit);
+      redemptions = data ?? [];
+    } else {
+      const { data } = await sb
+        .from("reward_redemptions")
+        .select("*")
+        .ilike("voucher_code", `%${q}%`)
+        .limit(limit);
+      redemptions = data ?? [];
+    }
   }
+
+  const count = (arr: any[]) => (Array.isArray(arr) ? arr.length : 0);
+
+  const exportUrl = `/admin/api/search/csv?${new URLSearchParams({
+    q,
+    limit: String(limit),
+  }).toString()}`;
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-semibold">Global Search</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Global Search</h1>
+        <form className="flex items-center gap-2">
+          <input
+            name="q"
+            defaultValue={q}
+            placeholder="ID, email, voucher…"
+            className="rounded-lg border px-3 py-2 bg-transparent min-w-72"
+          />
+          <input
+            type="number"
+            name="limit"
+            min={1}
+            max={200}
+            defaultValue={limit}
+            className="w-24 rounded-lg border px-3 py-2 bg-transparent"
+            title="Max rows per section"
+          />
+          <button
+            type="submit"
+            className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50 dark:hover:bg-neutral-900"
+          >
+            Search
+          </button>
+          {q && (
+            <a
+              href={exportUrl}
+              className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50 dark:hover:bg-neutral-900"
+            >
+              Export CSV
+            </a>
+          )}
+        </form>
+      </div>
 
-      <form className="flex gap-2">
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="Search users, invoices, payments, vouchers..."
-          className="rounded-lg border px-3 py-2 bg-transparent w-full"
-        />
-        <button className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50 dark:hover:bg-neutral-900">
-          Search
-        </button>
-      </form>
-
-      {!q && <p className="text-sm opacity-70">Type above and hit Search.</p>}
+      {!q && (
+        <div className="text-sm opacity-70">
+          Tip: paste a UUID (invoice/payment/receipt/redemption ID), an email/name, a{" "}
+          <code>voucher_code</code>, or a status like <code>PAID</code> /{" "}
+          <code>OVERDUE</code>.
+        </div>
+      )}
 
       {q && (
         <div className="space-y-8">
+          {/* Profiles */}
           <section>
-            <h2 className="font-medium mb-2">Profiles</h2>
-            <div className="overflow-x-auto">
+            <h2 className="text-lg font-medium">
+              Profiles <span className="opacity-60">({count(profiles)})</span>
+            </h2>
+            <div className="overflow-x-auto mt-2">
               <table className="w-full text-sm border-collapse">
-                <thead><tr className="text-left border-b">
-                  <th className="py-2 pr-3">Email</th>
-                  <th className="py-2 pr-3">Name</th>
-                  <th className="py-2 pr-3">Role</th>
-                  <th className="py-2 pr-3">ID</th>
-                </tr></thead>
+                <thead>
+                  <tr className="text-left border-b">
+                    <th className="py-2 pr-3">Name</th>
+                    <th className="py-2 pr-3">Email</th>
+                    <th className="py-2 pr-3">Role</th>
+                    <th className="py-2 pr-3">ID</th>
+                    <th className="py-2 pr-3">Created</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {results.profiles.map((p: any) => (
+                  {profiles.map((p: any) => (
                     <tr key={p.id} className="border-b">
-                      <td className="py-2 pr-3">{p.email}</td>
                       <td className="py-2 pr-3">{p.full_name ?? "—"}</td>
-                      <td className="py-2 pr-3">{p.role}</td>
-                      <td className="py-2 pr-3 break-all">{p.id}</td>
-                    </tr>
-                  ))}
-                  {results.profiles.length === 0 && (
-                    <tr><td colSpan={4} className="py-4 text-sm opacity-70">No matches.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section>
-            <h2 className="font-medium mb-2">Invoices</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead><tr className="text-left border-b">
-                  <th className="py-2 pr-3">ID</th>
-                  <th className="py-2 pr-3">Tenant</th>
-                  <th className="py-2 pr-3">Amount</th>
-                  <th className="py-2 pr-3">Status</th>
-                  <th className="py-2 pr-3">Due</th>
-                </tr></thead>
-                <tbody>
-                  {results.invoices.map((i: any) => (
-                    <tr key={i.id} className="border-b">
-                      <td className="py-2 pr-3 break-all">{i.id}</td>
-                      <td className="py-2 pr-3">{i.tenant_id}</td>
-                      <td className="py-2 pr-3">{(i.amount_cents ?? 0) / 100}</td>
-                      <td className="py-2 pr-3">{i.status}</td>
-                      <td className="py-2 pr-3">{i.due_date ? new Date(i.due_date).toLocaleDateString() : "—"}</td>
-                    </tr>
-                  ))}
-                  {results.invoices.length === 0 && (
-                    <tr><td colSpan={5} className="py-4 text-sm opacity-70">No matches.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section>
-            <h2 className="font-medium mb-2">Payments</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead><tr className="text-left border-b">
-                  <th className="py-2 pr-3">ID</th>
-                  <th className="py-2 pr-3">Invoice</th>
-                  <th className="py-2 pr-3">Amount</th>
-                  <th className="py-2 pr-3">Status</th>
-                  <th className="py-2 pr-3">Created</th>
-                </tr></thead>
-                <tbody>
-                  {results.payments.map((p: any) => (
-                    <tr key={p.id} className="border-b">
-                      <td className="py-2 pr-3 break-all">{p.id}</td>
-                      <td className="py-2 pr-3 break-all">{p.invoice_id}</td>
-                      <td className="py-2 pr-3">{(p.amount_cents ?? 0) / 100}</td>
-                      <td className="py-2 pr-3">{p.status}</td>
+                      <td className="py-2 pr-3">{p.email ?? "—"}</td>
+                      <td className="py-2 pr-3">{p.role ?? "—"}</td>
+                      <td className="py-2 pr-3 text-xs break-all">{p.id}</td>
                       <td className="py-2 pr-3">
                         {p.created_at ? new Date(p.created_at).toLocaleString() : "—"}
                       </td>
                     </tr>
                   ))}
-                  {results.payments.length === 0 && (
-                    <tr><td colSpan={5} className="py-4 text-sm opacity-70">No matches.</td></tr>
+                  {profiles.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-4 text-center opacity-70">
+                        No matches.
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>
             </div>
           </section>
 
+          {/* Invoices */}
           <section>
-            <h2 className="font-medium mb-2">Reward Redemptions</h2>
-            <div className="overflow-x-auto">
+            <h2 className="text-lg font-medium">
+              Invoices <span className="opacity-60">({count(invoices)})</span>
+            </h2>
+            <div className="overflow-x-auto mt-2">
               <table className="w-full text-sm border-collapse">
-                <thead><tr className="text-left border-b">
-                  <th className="py-2 pr-3">ID</th>
-                  <th className="py-2 pr-3">User</th>
-                  <th className="py-2 pr-3">Offer</th>
-                  <th className="py-2 pr-3">Voucher</th>
-                  <th className="py-2 pr-3">Time</th>
-                </tr></thead>
+                <thead>
+                  <tr className="text-left border-b">
+                    <th className="py-2 pr-3">Status</th>
+                    <th className="py-2 pr-3">Amount</th>
+                    <th className="py-2 pr-3">Tenant</th>
+                    <th className="py-2 pr-3">ID</th>
+                    <th className="py-2 pr-3">Created</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {results.redemptions.map((r: any) => (
+                  {invoices.map((r: any) => (
                     <tr key={r.id} className="border-b">
-                      <td className="py-2 pr-3 break-all">{r.id}</td>
-                      <td className="py-2 pr-3 break-all">{r.user_id}</td>
-                      <td className="py-2 pr-3 break-all">{r.offer_id}</td>
-                      <td className="py-2 pr-3 break-all">{r.voucher_code ?? "—"}</td>
+                      <td className="py-2 pr-3">{r.status ?? "—"}</td>
+                      <td className="py-2 pr-3">
+                        {"amount_cents" in r && typeof r.amount_cents === "number"
+                          ? (r.amount_cents / 100).toFixed(2)
+                          : "—"}
+                      </td>
+                      <td className="py-2 pr-3 text-xs break-all">{r.tenant_id ?? "—"}</td>
+                      <td className="py-2 pr-3 text-xs break-all">{r.id}</td>
                       <td className="py-2 pr-3">
                         {r.created_at ? new Date(r.created_at).toLocaleString() : "—"}
                       </td>
                     </tr>
                   ))}
-                  {results.redemptions.length === 0 && (
-                    <tr><td colSpan={5} className="py-4 text-sm opacity-70">No matches.</td></tr>
+                  {invoices.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-4 text-center opacity-70">
+                        No matches.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* Payments */}
+          <section>
+            <h2 className="text-lg font-medium">
+              Payments <span className="opacity-60">({count(payments)})</span>
+            </h2>
+            <div className="overflow-x-auto mt-2">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="text-left border-b">
+                    <th className="py-2 pr-3">Status</th>
+                    <th className="py-2 pr-3">Amount</th>
+                    <th className="py-2 pr-3">Invoice</th>
+                    <th className="py-2 pr-3">ID</th>
+                    <th className="py-2 pr-3">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payments.map((r: any) => (
+                    <tr key={r.id} className="border-b">
+                      <td className="py-2 pr-3">{r.status ?? "—"}</td>
+                      <td className="py-2 pr-3">
+                        {"amount_cents" in r && typeof r.amount_cents === "number"
+                          ? (r.amount_cents / 100).toFixed(2)
+                          : "—"}
+                      </td>
+                      <td className="py-2 pr-3 text-xs break-all">{r.invoice_id ?? "—"}</td>
+                      <td className="py-2 pr-3 text-xs break-all">{r.id}</td>
+                      <td className="py-2 pr-3">
+                        {r.created_at ? new Date(r.created_at).toLocaleString() : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                  {payments.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-4 text-center opacity-70">
+                        No matches.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* Receipts */}
+          <section>
+            <h2 className="text-lg font-medium">
+              Receipts <span className="opacity-60">({count(receipts)})</span>
+            </h2>
+            <div className="overflow-x-auto mt-2">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="text-left border-b">
+                    <th className="py-2 pr-3">Invoice</th>
+                    <th className="py-2 pr-3">Payment</th>
+                    <th className="py-2 pr-3">ID</th>
+                    <th className="py-2 pr-3">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {receipts.map((r: any) => (
+                    <tr key={r.id} className="border-b">
+                      <td className="py-2 pr-3 text-xs break-all">{r.invoice_id ?? "—"}</td>
+                      <td className="py-2 pr-3 text-xs break-all">{r.payment_id ?? "—"}</td>
+                      <td className="py-2 pr-3 text-xs break-all">{r.id}</td>
+                      <td className="py-2 pr-3">
+                        {r.created_at ? new Date(r.created_at).toLocaleString() : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                  {receipts.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="py-4 text-center opacity-70">
+                        No matches.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* Reward redemptions */}
+          <section>
+            <h2 className="text-lg font-medium">
+              Reward Redemptions <span className="opacity-60">({count(redemptions)})</span>
+            </h2>
+            <div className="overflow-x-auto mt-2">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="text-left border-b">
+                    <th className="py-2 pr-3">User</th>
+                    <th className="py-2 pr-3">Offer</th>
+                    <th className="py-2 pr-3">Voucher</th>
+                    <th className="py-2 pr-3">Points</th>
+                    <th className="py-2 pr-3">ID</th>
+                    <th className="py-2 pr-3">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {redemptions.map((r: any) => (
+                    <tr key={r.id} className="border-b">
+                      <td className="py-2 pr-3 text-xs break-all">{r.user_id ?? "—"}</td>
+                      <td className="py-2 pr-3 text-xs break-all">{r.offer_id ?? "—"}</td>
+                      <td className="py-2 pr-3">{r.voucher_code ?? "—"}</td>
+                      <td className="py-2 pr-3">
+                        {"points_cost" in r ? r.points_cost : "—"}
+                      </td>
+                      <td className="py-2 pr-3 text-xs break-all">{r.id}</td>
+                      <td className="py-2 pr-3">
+                        {r.created_at ? new Date(r.created_at).toLocaleString() : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                  {redemptions.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-4 text-center opacity-70">
+                        No matches.
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>
