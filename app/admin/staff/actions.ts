@@ -18,11 +18,10 @@ async function requireAdmin() {
 
   if (merr || !me) throw new Error("Profile not found");
   if (me.role !== "admin") throw new Error("Only admin can change roles");
-
   return { sb, me };
 }
 
-export async function setUserRole(formData: FormData) {
+export async function setUserRole(formData: FormData): Promise<void> {
   const { sb, me } = await requireAdmin();
 
   const userId = String(formData.get("userId") ?? "");
@@ -30,23 +29,20 @@ export async function setUserRole(formData: FormData) {
 
   const allowed: Role[] = ["tenant", "landlord", "staff", "admin"];
   if (!allowed.includes(newRole)) throw new Error("Invalid role");
-
   if (!userId) throw new Error("Missing userId");
 
-  // Optional guard: avoid self-demotion to prevent lockout
+  // Safety: don't let the current admin demote themselves by accident
   if (me.id === userId && newRole !== "admin") {
     throw new Error("Refusing to demote current admin (self)");
   }
 
-  // Update role
   const { error: uerr } = await sb
     .from("profiles")
     .update({ role: newRole })
     .eq("id", userId);
-
   if (uerr) throw uerr;
 
-  // Audit
+  // Audit trail
   await sb.from("audit_log").insert({
     actor_id: me.id,
     actor_email: me.email,
@@ -57,7 +53,6 @@ export async function setUserRole(formData: FormData) {
     details: `role->${newRole}`,
   });
 
-  // Refresh the staff list page
+  // Refresh the table
   revalidatePath("/admin/staff");
-  return { ok: true };
 }
