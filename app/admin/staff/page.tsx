@@ -23,7 +23,7 @@ export default async function Page({
 
   const sb = await createServerSupabase();
 
-  // AuthZ: staff/admin only
+  // staff/admin only
   const { data: userRes } = await sb.auth.getUser();
   if (!userRes?.user) throw new Error("Not authenticated");
   const { data: me } = await sb
@@ -43,11 +43,7 @@ export default async function Page({
 
   if (q) {
     query = query.or(
-      [
-        `email.ilike.%${q}%`,
-        `full_name.ilike.%${q}%`,
-        `id.ilike.%${q}%`,
-      ].join(",")
+      [`email.ilike.%${q}%`, `full_name.ilike.%${q}%`, `id.ilike.%${q}%`].join(",")
     );
   }
   if (role) query = query.eq("role", role);
@@ -59,12 +55,6 @@ export default async function Page({
   if (error) throw error;
 
   const base = "/admin/staff";
-  const search = new URLSearchParams({
-    q,
-    role,
-    limit: String(limit),
-  });
-
   const totalPages = Math.max(Math.ceil(count / limit), 1);
 
   return (
