@@ -1,10 +1,7 @@
+// app/admin/api/lang/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { resolveLocale } from "@/lib/i18n";
 
-/**
- * GET /admin/api/lang?lang=en|ur&next=/admin/whatever
- * POST form: lang=en|ur
- */
 function redirectTo(req: NextRequest) {
   const referer = req.headers.get("referer");
   const url = new URL(req.url);
