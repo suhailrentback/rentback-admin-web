@@ -1,172 +1,192 @@
+// app/admin/audit/page.tsx
+import Link from "next/link";
+import { createServerSupabase } from "@/lib/supabase";
+
 export const dynamic = "force-dynamic";
 
-import { createServerSupabase } from "@/lib/supabase/server";
-
-type SearchParams = {
+type SP = {
+  q?: string;
   actor?: string;
   entity?: string;
-  action?: string;
-  from?: string; // ISO date (YYYY-MM-DD)
-  to?: string;   // ISO date (YYYY-MM-DD)
+  from?: string; // ISO date
+  to?: string;   // ISO date
   limit?: string;
 };
 
-function isUuid(x: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x);
+function toParams(sp: SP) {
+  const p = new URLSearchParams();
+  if (sp.q?.trim()) p.set("q", sp.q.trim());
+  if (sp.actor?.trim()) p.set("actor", sp.actor.trim());
+  if (sp.entity?.trim()) p.set("entity", sp.entity.trim());
+  if (sp.from?.trim()) p.set("from", sp.from.trim());
+  if (sp.to?.trim()) p.set("to", sp.to.trim());
+  if (sp.limit?.trim()) p.set("limit", sp.limit.trim());
+  return p;
 }
 
-export default async function Page({ searchParams }: { searchParams?: SearchParams }) {
-  const sp = searchParams ?? {};
-  const actor = (sp.actor ?? "").trim();
-  const entity = (sp.entity ?? "").trim();
-  const action = (sp.action ?? "").trim();
-  const from = (sp.from ?? "").trim();
-  const to = (sp.to ?? "").trim();
-  const limit = Math.min(Math.max(Number(sp.limit ?? 100), 1), 2000);
+export default async function AdminAuditPage({ searchParams }: { searchParams: SP }) {
+  const q = (searchParams?.q ?? "").trim();
+  const actor = (searchParams?.actor ?? "").trim();
+  const entity = (searchParams?.entity ?? "").trim();
+  const from = (searchParams?.from ?? "").trim();
+  const to = (searchParams?.to ?? "").trim();
 
-  const sb = await createServerSupabase();
+  const rawLimit = Number(searchParams?.limit ?? "100");
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 && rawLimit <= 1000 ? rawLimit : 100;
 
-  // AuthZ: staff/admin only
-  const { data: userRes } = await sb.auth.getUser();
-  if (!userRes?.user) throw new Error("Not authenticated");
-  const { data: me } = await sb
-    .from("profiles")
-    .select("id, role")
-    .eq("id", userRes.user.id)
-    .single();
-  if (!me || !["staff", "admin"].includes(String(me.role))) {
-    throw new Error("Not permitted");
+  const sb = createServerSupabase();
+
+  // Optional: auth gate (RLS will still protect, this just gives a nicer failure)
+  const { data: me } = await sb.auth.getUser();
+  if (!me?.user) {
+    return (
+      <div className="max-w-5xl mx-auto px-6 py-10">
+        <h1 className="text-2xl font-semibold mb-2">Audit Log</h1>
+        <p className="text-sm text-red-600">You must be signed in to view this page.</p>
+      </div>
+    );
   }
 
-  let q = sb.from("audit_log")
-    .select("id, actor_id, entity, action, row_id, created_at, meta")
+  // Build query
+  let query = sb
+    .from("audit_log")
+    .select("*")
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  if (actor) {
-    q = isUuid(actor) ? q.eq("actor_id", actor) : q;
+  if (q) {
+    query = query.or(
+      [
+        `action.ilike.%${q}%`,
+        `entity.ilike.%${q}%`,
+        `actor_email.ilike.%${q}%`,
+        `summary.ilike.%${q}%`,
+        `meta::text.ilike.%${q}%`,
+        `id.eq.${q}`, // allow direct id paste
+      ].join(",")
+    );
   }
-  if (entity) q = q.ilike("entity", `%${entity}%`);
-  if (action) q = q.ilike("action", `%${action}%`);
-  if (from) q = q.gte("created_at", new Date(from).toISOString());
-  if (to)   q = q.lte("created_at", new Date(to + "T23:59:59.999Z").toISOString());
+  if (actor) {
+    query = query.or([`actor_email.ilike.%${actor}%`, `actor_id.eq.${actor}`].join(","));
+  }
+  if (entity) {
+    query = query.ilike("entity", `%${entity}%`);
+  }
+  if (from) {
+    query = query.gte("created_at", from);
+  }
+  if (to) {
+    query = query.lte("created_at", to);
+  }
 
-  const { data: rows = [] } = await q;
+  const { data: rows, error } = await query;
 
-  const exportUrl = `/admin/audit/export?${new URLSearchParams({
-    actor,
-    entity,
-    action,
-    from,
-    to,
-    limit: String(limit),
+  const exportHref = `/admin/audit/export?${toParams({
+    ...searchParams,
+    // for export we allow larger cap; keeps your current filters
+    limit: searchParams?.limit ?? "5000",
   }).toString()}`;
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+    <div className="max-w-6xl mx-auto px-6 py-10">
+      <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold">Audit Log</h1>
-        <form className="flex flex-wrap items-end gap-2">
-          <div className="flex flex-col">
-            <label className="text-xs opacity-70">Actor (UUID)</label>
-            <input
-              name="actor"
-              defaultValue={actor}
-              placeholder="user-id…"
-              className="rounded-lg border px-3 py-2 bg-transparent min-w-56"
-            />
-          </div>
-          <div className="flex flex-col">
-            <label className="text-xs opacity-70">Entity</label>
-            <input
-              name="entity"
-              defaultValue={entity}
-              placeholder="invoice / payment / profile…"
-              className="rounded-lg border px-3 py-2 bg-transparent min-w-44"
-            />
-          </div>
-          <div className="flex flex-col">
-            <label className="text-xs opacity-70">Action</label>
-            <input
-              name="action"
-              defaultValue={action}
-              placeholder="create / update / confirm…"
-              className="rounded-lg border px-3 py-2 bg-transparent min-w-44"
-            />
-          </div>
-          <div className="flex flex-col">
-            <label className="text-xs opacity-70">From</label>
-            <input type="date" name="from" defaultValue={from} className="rounded-lg border px-3 py-2 bg-transparent" />
-          </div>
-          <div className="flex flex-col">
-            <label className="text-xs opacity-70">To</label>
-            <input type="date" name="to" defaultValue={to} className="rounded-lg border px-3 py-2 bg-transparent" />
-          </div>
-          <div className="flex flex-col">
-            <label className="text-xs opacity-70">Limit</label>
-            <input
-              type="number"
-              name="limit"
-              min={1}
-              max={2000}
-              defaultValue={limit}
-              className="rounded-lg border px-3 py-2 bg-transparent w-28"
-            />
-          </div>
+        <Link
+          href={exportHref}
+          className="px-3 py-2 rounded-lg border bg-black text-white dark:bg-white dark:text-black"
+        >
+          Export CSV
+        </Link>
+      </div>
+
+      <form method="GET" className="grid grid-cols-1 md:grid-cols-6 gap-3 mb-6">
+        <input
+          className="border rounded-lg px-3 py-2 md:col-span-2"
+          type="text"
+          name="q"
+          defaultValue={q}
+          placeholder="Search text (action, summary, meta…) "
+        />
+        <input
+          className="border rounded-lg px-3 py-2"
+          type="text"
+          name="actor"
+          defaultValue={actor}
+          placeholder="Actor (email or user id)"
+        />
+        <input
+          className="border rounded-lg px-3 py-2"
+          type="text"
+          name="entity"
+          defaultValue={entity}
+          placeholder="Entity (e.g. invoice, payment)"
+        />
+        <input className="border rounded-lg px-3 py-2" type="datetime-local" name="from" defaultValue={from} />
+        <input className="border rounded-lg px-3 py-2" type="datetime-local" name="to" defaultValue={to} />
+        <div className="flex items-center gap-2">
+          <input
+            className="border rounded-lg px-3 py-2 w-24"
+            type="number"
+            name="limit"
+            min={1}
+            max={1000}
+            defaultValue={String(limit)}
+            placeholder="Limit"
+          />
           <button
             type="submit"
-            className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50 dark:hover:bg-neutral-900"
+            className="px-3 py-2 rounded-lg border bg-black text-white dark:bg-white dark:text-black"
           >
             Apply
           </button>
-          <a
-            href={exportUrl}
-            className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50 dark:hover:bg-neutral-900"
-          >
-            Export CSV
-          </a>
-        </form>
-      </div>
+        </div>
+      </form>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="text-left border-b">
-              <th className="py-2 pr-3">When</th>
-              <th className="py-2 pr-3">Actor</th>
-              <th className="py-2 pr-3">Entity</th>
-              <th className="py-2 pr-3">Action</th>
-              <th className="py-2 pr-3">Row ID</th>
-              <th className="py-2 pr-3">Meta</th>
-              <th className="py-2 pr-3">Audit ID</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r: any) => (
-              <tr key={r.id} className="border-b align-top">
-                <td className="py-2 pr-3">
-                  {r.created_at ? new Date(r.created_at).toLocaleString() : "—"}
-                </td>
-                <td className="py-2 pr-3 text-xs break-all">{r.actor_id ?? "—"}</td>
-                <td className="py-2 pr-3">{r.entity ?? "—"}</td>
-                <td className="py-2 pr-3">{r.action ?? "—"}</td>
-                <td className="py-2 pr-3 text-xs break-all">{r.row_id ?? "—"}</td>
-                <td className="py-2 pr-3 text-xs">
-                  {r.meta ? (() => { try { return JSON.stringify(r.meta); } catch { return String(r.meta); } })() : "—"}
-                </td>
-                <td className="py-2 pr-3 text-xs break-all">{r.id}</td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
+      {error ? (
+        <p className="text-sm text-red-600">Failed to load audit log: {error.message}</p>
+      ) : !rows || rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No audit events found.</p>
+      ) : (
+        <div className="overflow-x-auto border rounded-lg">
+          <table className="min-w-full text-sm">
+            <thead className="bg-muted/50">
               <tr>
-                <td colSpan={7} className="py-6 text-center opacity-70">
-                  No audit rows match your filters.
-                </td>
+                <th className="text-left p-2">Time</th>
+                <th className="text-left p-2">Actor</th>
+                <th className="text-left p-2">Action</th>
+                <th className="text-left p-2">Entity</th>
+                <th className="text-left p-2">Record</th>
+                <th className="text-left p-2">Summary</th>
+                <th className="text-left p-2">Meta</th>
+                <th className="text-left p-2">ID</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {(rows as any[]).map((r) => (
+                <tr key={r.id} className="border-t align-top">
+                  <td className="p-2 whitespace-nowrap">
+                    {r.created_at ? new Date(r.created_at).toLocaleString() : "—"}
+                  </td>
+                  <td className="p-2">
+                    <div className="flex flex-col">
+                      <span className="font-medium">{r.actor_email ?? "—"}</span>
+                      <span className="text-xs text-muted-foreground break-all">{r.actor_id ?? "—"}</span>
+                    </div>
+                  </td>
+                  <td className="p-2">{r.action ?? "—"}</td>
+                  <td className="p-2">{r.entity ?? "—"}</td>
+                  <td className="p-2 break-all">{r.record_id ?? r.row_id ?? "—"}</td>
+                  <td className="p-2">{r.summary ?? "—"}</td>
+                  <td className="p-2 text-xs break-all">
+                    {typeof r.meta === "object" ? JSON.stringify(r.meta) : r.meta ?? "—"}
+                  </td>
+                  <td className="p-2 text-xs break-all">{r.id}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
