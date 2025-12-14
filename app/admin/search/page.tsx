@@ -1,198 +1,265 @@
 // app/admin/search/page.tsx
-import { createServerSupabase } from "@/lib/supabase";
 import Link from "next/link";
+import { createServerSupabase } from "@/lib/supabase";
+
+type Props = { searchParams?: { q?: string } };
 
 export const dynamic = "force-dynamic";
 
-type SP = { q?: string };
+const Section = ({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) => (
+  <section className="mt-8">
+    <h2 className="text-lg font-semibold mb-3">{title}</h2>
+    <div className="rounded-xl border p-3 overflow-x-auto">{children}</div>
+  </section>
+);
 
-async function searchProfiles(q: string) {
-  try {
-    const sb = createServerSupabase();
-    const { data, error } = await sb
-      .from("profiles")
-      .select("id, full_name, email, role, created_at")
-      .or(`full_name.ilike.%${q}%,email.ilike.%${q}%`)
-      .order("created_at", { ascending: false })
-      .limit(20);
-    if (error) return [];
-    return data ?? [];
-  } catch {
-    return [];
-  }
-}
+const Cell = ({ children }: { children: React.ReactNode }) => (
+  <td className="px-2 py-1 text-sm align-top">{children}</td>
+);
 
-async function searchInvoices(q: string) {
-  try {
-    const sb = createServerSupabase();
-    // Look up by id direct hit or textual fields if present
-    const orParts = [`id.eq.${q}`, `status.ilike.%${q}%`, `notes.ilike.%${q}%`, `reference.ilike.%${q}%`];
-    const { data, error } = await sb
-      .from("invoices")
-      .select("id, status, amount_cents, tenant_id, landlord_id, created_at, due_date")
-      .or(orParts.join(","))
-      .order("created_at", { ascending: false })
-      .limit(20);
-    if (error) return [];
-    return data ?? [];
-  } catch {
-    return [];
-  }
-}
-
-async function searchReceipts(q: string) {
-  try {
-    const sb = createServerSupabase();
-    const { data, error } = await sb
-      .from("receipts")
-      .select("id, invoice_id, created_at, url")
-      .or([`id.eq.${q}`, `invoice_id.eq.${q}`].join(","))
-      .order("created_at", { ascending: false })
-      .limit(20);
-    if (error) return [];
-    return data ?? [];
-  } catch {
-    return [];
-  }
-}
-
-export default async function AdminSearchPage({ searchParams }: { searchParams: SP }) {
+export default async function Page({ searchParams }: Props) {
   const q = (searchParams?.q ?? "").trim();
 
-  const [profiles, invoices, receipts] = q
-    ? await Promise.all([searchProfiles(q), searchInvoices(q), searchReceipts(q)])
-    : [[], [], []];
+  // Auth
+  const sb = await createServerSupabase();
+  const { data: me } = await sb.auth.getUser();
+  if (!me?.user) {
+    return <div className="p-6">Not authenticated.</div>;
+  }
+  const { data: myProfile, error: profErr } = await sb
+    .from("profiles")
+    .select("role, full_name")
+    .eq("id", me.user.id)
+    .single();
+  if (profErr) {
+    return <div className="p-6 text-red-600">Profile error: {profErr.message}</div>;
+  }
+  if (!myProfile || !["staff", "admin"].includes(myProfile.role)) {
+    return <div className="p-6">Not permitted.</div>;
+  }
+
+  let tenants: any[] = [];
+  let landlords: any[] = [];
+  let invoices: any[] = [];
+  let receipts: any[] = [];
+
+  if (q) {
+    // Tenants
+    const tRes = await sb
+      .from("profiles")
+      .select("id, full_name, email, role, created_at")
+      .eq("role", "tenant")
+      .or(`full_name.ilike.%${q}%,email.ilike.%${q}%`)
+      .order("created_at", { ascending: false })
+      .limit(25);
+    tenants = tRes.data ?? [];
+
+    // Landlords
+    const lRes = await sb
+      .from("profiles")
+      .select("id, full_name, email, role, created_at")
+      .eq("role", "landlord")
+      .or(`full_name.ilike.%${q}%,email.ilike.%${q}%`)
+      .order("created_at", { ascending: false })
+      .limit(25);
+    landlords = lRes.data ?? [];
+
+    // Invoices (status/number/reference; keep loose so it won't break if some cols are missing)
+    const iRes = await sb
+      .from("invoices")
+      .select(
+        "id, status, amount_cents, due_date, created_at, tenant_id, landlord_id, number, reference",
+      )
+      .or(`status.ilike.%${q}%,number.ilike.%${q}%,reference.ilike.%${q}%`)
+      .order("created_at", { ascending: false })
+      .limit(25);
+    invoices = iRes.data ?? [];
+
+    // Receipts (id/number/reference/invoice)
+    const rRes = await sb
+      .from("receipts")
+      .select("id, invoice_id, created_at, number, reference")
+      .or(`id.eq.${q},number.ilike.%${q}%,reference.ilike.%${q}%`)
+      .order("created_at", { ascending: false })
+      .limit(25);
+    receipts = rRes.data ?? [];
+  }
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-10">
-      <h1 className="text-2xl font-semibold mb-6">Global Search</h1>
+    <div className="p-6 space-y-6">
+      <h1 className="text-2xl font-bold">Global Search</h1>
 
-      <form method="GET" className="flex gap-3 mb-8">
+      <form method="GET" className="flex gap-2">
         <input
           type="text"
           name="q"
           defaultValue={q}
-          placeholder="Search name, email, invoice/receipt ID, status…"
-          className="w-full border rounded-lg px-3 py-2"
+          placeholder="Search tenants, landlords, invoices, receipts…"
+          className="w-full max-w-xl rounded-xl border px-3 py-2"
         />
-        <button
-          type="submit"
-          className="px-4 py-2 rounded-lg border bg-black text-white dark:bg-white dark:text-black"
-        >
-          Search
-        </button>
+        <button className="rounded-xl border px-4 py-2">Search</button>
       </form>
 
-      {!q && <p className="text-sm text-muted-foreground">Tip: try an email, a name, or a UUID.</p>}
-
-      {q && (
-        <div className="space-y-10">
-          <section>
-            <h2 className="text-lg font-medium mb-3">Profiles</h2>
-            {profiles.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No matches.</p>
+      {!q ? (
+        <p className="text-sm text-gray-500">
+          Type a name, email, invoice number, reference, or status keyword.
+        </p>
+      ) : (
+        <>
+          <Section title={`Tenants (${tenants.length})`}>
+            {tenants.length === 0 ? (
+              <div className="text-sm text-gray-500">No matches.</div>
             ) : (
-              <div className="overflow-x-auto border rounded-lg">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="text-left p-2">Name</th>
-                      <th className="text-left p-2">Email</th>
-                      <th className="text-left p-2">Role</th>
-                      <th className="text-left p-2">ID</th>
-                      <th className="text-left p-2">Created</th>
+              <table className="min-w-[640px] w-full">
+                <thead>
+                  <tr className="text-left text-xs">
+                    <th className="px-2 py-1">Name</th>
+                    <th className="px-2 py-1">Email</th>
+                    <th className="px-2 py-1">ID</th>
+                    <th className="px-2 py-1">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tenants.map((r: any) => (
+                    <tr key={r.id} className="border-t">
+                      <Cell>{r.full_name ?? "—"}</Cell>
+                      <Cell>{r.email ?? "—"}</Cell>
+                      <Cell>
+                        <code className="text-[10px] break-all">{r.id}</code>
+                      </Cell>
+                      <Cell>
+                        {r.created_at
+                          ? new Date(r.created_at).toLocaleString()
+                          : "—"}
+                      </Cell>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {profiles.map((p: any) => (
-                      <tr key={p.id} className="border-t">
-                        <td className="p-2">{p.full_name ?? "—"}</td>
-                        <td className="p-2">{p.email ?? "—"}</td>
-                        <td className="p-2">{p.role ?? "—"}</td>
-                        <td className="p-2 break-all">{p.id}</td>
-                        <td className="p-2">{p.created_at ? new Date(p.created_at).toLocaleString() : "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             )}
-          </section>
+          </Section>
 
-          <section>
-            <h2 className="text-lg font-medium mb-3">Invoices</h2>
+          <Section title={`Landlords (${landlords.length})`}>
+            {landlords.length === 0 ? (
+              <div className="text-sm text-gray-500">No matches.</div>
+            ) : (
+              <table className="min-w-[640px] w-full">
+                <thead>
+                  <tr className="text-left text-xs">
+                    <th className="px-2 py-1">Name</th>
+                    <th className="px-2 py-1">Email</th>
+                    <th className="px-2 py-1">ID</th>
+                    <th className="px-2 py-1">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {landlords.map((r: any) => (
+                    <tr key={r.id} className="border-t">
+                      <Cell>{r.full_name ?? "—"}</Cell>
+                      <Cell>{r.email ?? "—"}</Cell>
+                      <Cell>
+                        <code className="text-[10px] break-all">{r.id}</code>
+                      </Cell>
+                      <Cell>
+                        {r.created_at
+                          ? new Date(r.created_at).toLocaleString()
+                          : "—"}
+                      </Cell>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Section>
+
+          <Section title={`Invoices (${invoices.length})`}>
             {invoices.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No matches.</p>
+              <div className="text-sm text-gray-500">No matches.</div>
             ) : (
-              <div className="overflow-x-auto border rounded-lg">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="text-left p-2">ID</th>
-                      <th className="text-left p-2">Status</th>
-                      <th className="text-left p-2">Amount</th>
-                      <th className="text-left p-2">Tenant</th>
-                      <th className="text-left p-2">Landlord</th>
-                      <th className="text-left p-2">Due</th>
-                      <th className="text-left p-2">Created</th>
+              <table className="min-w-[800px] w-full">
+                <thead>
+                  <tr className="text-left text-xs">
+                    <th className="px-2 py-1">Number</th>
+                    <th className="px-2 py-1">Status</th>
+                    <th className="px-2 py-1">Amount</th>
+                    <th className="px-2 py-1">Due</th>
+                    <th className="px-2 py-1">Tenant</th>
+                    <th className="px-2 py-1">ID</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map((r: any) => (
+                    <tr key={r.id} className="border-t">
+                      <Cell>{r.number ?? r.reference ?? "—"}</Cell>
+                      <Cell>{r.status ?? "—"}</Cell>
+                      <Cell>
+                        {typeof r.amount_cents === "number"
+                          ? (r.amount_cents / 100).toFixed(2)
+                          : "—"}
+                      </Cell>
+                      <Cell>
+                        {r.due_date
+                          ? new Date(r.due_date).toLocaleDateString()
+                          : "—"}
+                      </Cell>
+                      <Cell>
+                        <code className="text-[10px] break-all">
+                          {r.tenant_id ?? "—"}
+                        </code>
+                      </Cell>
+                      <Cell>
+                        <code className="text-[10px] break-all">{r.id}</code>
+                      </Cell>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {invoices.map((i: any) => (
-                      <tr key={i.id} className="border-t">
-                        <td className="p-2 break-all">{i.id}</td>
-                        <td className="p-2">{i.status ?? "—"}</td>
-                        <td className="p-2">{typeof i.amount_cents === "number" ? (i.amount_cents / 100).toFixed(2) : "—"}</td>
-                        <td className="p-2 break-all">{i.tenant_id ?? "—"}</td>
-                        <td className="p-2 break-all">{i.landlord_id ?? "—"}</td>
-                        <td className="p-2">{i.due_date ? new Date(i.due_date).toLocaleDateString() : "—"}</td>
-                        <td className="p-2">{i.created_at ? new Date(i.created_at).toLocaleString() : "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             )}
-          </section>
+          </Section>
 
-          <section>
-            <h2 className="text-lg font-medium mb-3">Receipts</h2>
+          <Section title={`Receipts (${receipts.length})`}>
             {receipts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No matches.</p>
+              <div className="text-sm text-gray-500">No matches.</div>
             ) : (
-              <div className="overflow-x-auto border rounded-lg">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="text-left p-2">ID</th>
-                      <th className="text-left p-2">Invoice</th>
-                      <th className="text-left p-2">Created</th>
-                      <th className="text-left p-2">Link</th>
+              <table className="min-w-[640px] w-full">
+                <thead>
+                  <tr className="text-left text-xs">
+                    <th className="px-2 py-1">Number</th>
+                    <th className="px-2 py-1">Invoice</th>
+                    <th className="px-2 py-1">Created</th>
+                    <th className="px-2 py-1">ID</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {receipts.map((r: any) => (
+                    <tr key={r.id} className="border-t">
+                      <Cell>{r.number ?? r.reference ?? "—"}</Cell>
+                      <Cell>
+                        <code className="text-[10px] break-all">
+                          {r.invoice_id ?? "—"}
+                        </code>
+                      </Cell>
+                      <Cell>
+                        {r.created_at
+                          ? new Date(r.created_at).toLocaleString()
+                          : "—"}
+                      </Cell>
+                      <Cell>
+                        <code className="text-[10px] break-all">{r.id}</code>
+                      </Cell>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {receipts.map((r: any) => (
-                      <tr key={r.id} className="border-t">
-                        <td className="p-2 break-all">{r.id}</td>
-                        <td className="p-2 break-all">{r.invoice_id ?? "—"}</td>
-                        <td className="p-2">{r.created_at ? new Date(r.created_at).toLocaleString() : "—"}</td>
-                        <td className="p-2">
-                          {r.url ? (
-                            <Link className="underline" href={r.url} target="_blank">
-                              Open
-                            </Link>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             )}
-          </section>
-        </div>
+          </Section>
+        </>
       )}
     </div>
   );
