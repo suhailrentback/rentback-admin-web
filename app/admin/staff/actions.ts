@@ -2,13 +2,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
 import { createRouteSupabase } from "@/lib/supabase/server";
 
 type Role = "tenant" | "landlord" | "staff" | "admin";
 
 async function assertStaff() {
-  const sb = await createRouteSupabase(cookies);
+  const sb = await createRouteSupabase();
   const { data: userRes } = await sb.auth.getUser();
   if (!userRes?.user) throw new Error("unauthenticated");
   const { data: me, error } = await sb
@@ -22,11 +21,9 @@ async function assertStaff() {
 }
 
 export async function setUserRole(userId: string, role: Role) {
-  const { sb, me } = await assertStaff();
+  const { sb } = await assertStaff();
 
-  // Prevent accidentally locking out all admins:
   if (role !== "admin") {
-    // if demoting an admin, ensure at least one other admin remains
     const { data: target } = await sb.from("profiles").select("id, role").eq("id", userId).single();
     if (target?.role === "admin") {
       const { count } = await sb
@@ -41,9 +38,6 @@ export async function setUserRole(userId: string, role: Role) {
 
   const { error } = await sb.from("profiles").update({ role }).eq("id", userId);
   if (error) throw error;
-
-  // Optional: write audit row if you have a function/trigger
-  // (DB RLS ideally logs this)
 
   revalidatePath("/admin/staff");
   return { ok: true };
