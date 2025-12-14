@@ -1,10 +1,11 @@
 'use client';
-
+// lib/i18n/provider.tsx
 import React, { createContext, useContext, useMemo } from 'react';
-import type { Lang, Theme } from '../i18n';
-import { getDir } from '../i18n';
+import type { Lang, Theme } from './shared';
+import { getDir } from './shared';
 
 type I18nCtx = { lang: Lang; theme: Theme; dir: 'ltr' | 'rtl' };
+
 const I18nContext = createContext<I18nCtx | null>(null);
 
 export function I18nProvider({
