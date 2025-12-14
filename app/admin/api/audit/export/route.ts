@@ -1,93 +1,108 @@
 // app/admin/api/audit/export/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createRouteSupabase } from "@/lib/supabase/server";
 
-export async function GET(req: Request) {
+// very small CSV escaper
+function csvValue(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  const s = String(v);
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+function toCSV(rows: any[], headers: string[]): string {
+  const head = headers.join(",");
+  const body = rows
+    .map((r) => headers.map((h) => csvValue((r as any)[h])).join(","))
+    .join("\n");
+  return `${head}\n${body}\n`;
+}
+
+export async function GET(req: NextRequest) {
+  const sb = createRouteSupabase(cookies);
+
+  // AuthZ: only staff/admin
+  const { data: auth } = await sb.auth.getUser();
+  if (!auth?.user) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+  const { data: me } = await sb
+    .from("profiles")
+    .select("id, role, email")
+    .eq("id", auth.user.id)
+    .single();
+  if (!me || !["staff", "admin"].includes(me.role)) {
+    return NextResponse.json({ error: "Not permitted" }, { status: 403 });
+  }
+
   const url = new URL(req.url);
   const q = (url.searchParams.get("q") ?? "").trim();
   const actor = (url.searchParams.get("actor") ?? "").trim();
   const entity = (url.searchParams.get("entity") ?? "").trim();
-  const from = url.searchParams.get("from") || undefined;
-  const to = url.searchParams.get("to") || undefined;
-  const rawLimit = Number(url.searchParams.get("limit") ?? 5000);
-  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 20000) : 5000;
-
-  const sb = await createRouteSupabase();
-
-  // Staff/Admin only
-  const { data: userRes } = await sb.auth.getUser();
-  if (!userRes?.user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  const { data: me } = await sb
-    .from("profiles")
-    .select("id, role")
-    .eq("id", userRes.user.id)
-    .single();
-  if (!me || !["staff", "admin"].includes(String(me.role))) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
+  const action = (url.searchParams.get("action") ?? "").trim();
+  const from = (url.searchParams.get("from") ?? "").trim(); // ISO date/time
+  const to = (url.searchParams.get("to") ?? "").trim();     // ISO date/time
+  const rawLimit = Number(url.searchParams.get("limit") ?? "");
+  const limit =
+    Number.isFinite(rawLimit) && rawLimit! > 0 && rawLimit! <= 10000
+      ? rawLimit
+      : 2000;
 
   let query = sb
     .from("audit_log")
     .select(
-      "id, created_at, actor_id, actor_email, actor_role, action, table_name, row_id, details"
+      "id, actor_id, actor_email, action, entity, entity_id, reason, ip, user_agent, created_at"
     )
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  if (from) query = query.gte("created_at", new Date(from).toISOString());
-  if (to) {
-    const t = new Date(to);
-    t.setHours(23, 59, 59, 999);
-    query = query.lte("created_at", t.toISOString());
-  }
-  if (actor) query = query.ilike("actor_email", `%${actor}%`);
-  if (entity) query = query.ilike("table_name", `%${entity}%`);
   if (q) {
+    // free text across a few columns
     query = query.or(
       [
-        `action.ilike.%${q}%`,
-        `details.ilike.%${q}%`,
-        `row_id.ilike.%${q}%`,
         `actor_email.ilike.%${q}%`,
+        `action.ilike.%${q}%`,
+        `entity.ilike.%${q}%`,
+        `entity_id.ilike.%${q}%`,
+        `reason.ilike.%${q}%`,
+        `ip.ilike.%${q}%`,
       ].join(",")
     );
   }
+  if (actor) query = query.eq("actor_email", actor);
+  if (entity) query = query.eq("entity", entity);
+  if (action) query = query.eq("action", action);
+  if (from) query = query.gte("created_at", from);
+  if (to) query = query.lte("created_at", to);
 
-  const { data = [], error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const { data, error } = await query;
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
-  const headings = [
-    "created_at",
-    "actor_email",
-    "actor_role",
-    "action",
-    "table_name",
-    "row_id",
-    "details",
+  const headers = [
     "id",
+    "created_at",
+    "actor_id",
+    "actor_email",
+    "action",
+    "entity",
+    "entity_id",
+    "reason",
+    "ip",
+    "user_agent",
   ];
-  const csv = [
-    headings.join(","),
-    ...data.map((r: any) =>
-      [
-        r.created_at,
-        r.actor_email ?? "",
-        r.actor_role ?? "",
-        r.action ?? "",
-        r.table_name ?? "",
-        (r.row_id ?? "").toString().replaceAll(",", " "),
-        JSON.stringify(r.details ?? "").replaceAll(",", ";"),
-        r.id,
-      ]
-        .map((v) => `"${String(v).replaceAll(`"`, `""`)}"`)
-        .join(",")
-    ),
-  ].join("\n");
+  const csv = toCSV(data ?? [], headers);
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const filename = `audit-log_${stamp}.csv`;
 
   return new NextResponse(csv, {
+    status: 200,
     headers: {
-      "content-type": "text/csv; charset=utf-8",
-      "content-disposition": `attachment; filename="audit_export.csv"`,
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Cache-Control": "no-store",
     },
   });
 }
