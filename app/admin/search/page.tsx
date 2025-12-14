@@ -1,379 +1,305 @@
-export const dynamic = "force-dynamic";
-
+// app/admin/search/page.tsx
+import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
 
-type SearchParams = { q?: string; limit?: string };
+export const metadata = { title: "Global Search · Admin" };
 
-function isUuid(maybe: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    maybe
-  );
-}
+type SearchParams = { q?: string };
 
-export default async function Page({
+export default async function AdminSearchPage({
   searchParams,
 }: {
   searchParams?: SearchParams;
 }) {
-  const sp = searchParams ?? {};
-  const q = (sp.q ?? "").trim();
-  const limit = Math.min(Math.max(Number(sp.limit ?? 25), 1), 200);
-
+  const q = (searchParams?.q ?? "").trim();
   const sb = await createServerSupabase();
 
-  // AuthZ: staff/admin only
+  // AuthZ: staff/admin only (middleware should already block, this is just a guard)
   const { data: userRes } = await sb.auth.getUser();
-  if (!userRes?.user) throw new Error("Not authenticated");
+  if (!userRes?.user) {
+    return (
+      <main className="max-w-4xl mx-auto p-6">
+        <h1 className="text-xl font-semibold">Not authenticated</h1>
+      </main>
+    );
+  }
   const { data: me } = await sb
     .from("profiles")
-    .select("id, role")
+    .select("id, role, email, full_name")
     .eq("id", userRes.user.id)
     .single();
-  if (!me || !["staff", "admin"].includes(String(me.role))) {
-    throw new Error("Not permitted");
+
+  if (!me || !["staff", "admin"].includes(me.role)) {
+    return (
+      <main className="max-w-4xl mx-auto p-6">
+        <h1 className="text-xl font-semibold">Not permitted</h1>
+      </main>
+    );
   }
 
+  // Results
   let profiles: any[] = [];
   let invoices: any[] = [];
   let payments: any[] = [];
   let receipts: any[] = [];
-  let redemptions: any[] = [];
+
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    q
+  );
 
   if (q) {
-    // PROFILES
-    if (isUuid(q)) {
-      const { data } = await sb
-        .from("profiles")
-        .select("id, email, full_name, role, created_at, updated_at")
-        .eq("id", q)
-        .limit(limit);
-      profiles = data ?? [];
-    } else {
-      const { data } = await sb
-        .from("profiles")
-        .select("id, email, full_name, role, created_at, updated_at")
-        .or(`email.ilike.%${q}%,full_name.ilike.%${q}%`)
-        .limit(limit);
-      profiles = data ?? [];
-    }
+    // Profiles: search by email / full_name (case-insensitive)
+    const { data: profs } = await sb
+      .from("profiles")
+      .select("id, email, full_name, role, created_at")
+      .or(`email.ilike.%${q}%,full_name.ilike.%${q}%`)
+      .limit(25);
+    profiles = profs ?? [];
 
-    // INVOICES — search by id (uuid) or by status text
-    if (isUuid(q)) {
-      const { data } = await sb.from("invoices").select("*").eq("id", q).limit(limit);
-      invoices = data ?? [];
-    } else {
-      const { data } = await sb
-        .from("invoices")
-        .select("*")
-        .ilike("status", `%${q}%`)
-        .limit(limit);
-      invoices = data ?? [];
-    }
+    // For domain tables we only search by exact UUID id to avoid text/uuid casting issues
+    if (isUUID) {
+      const invSel =
+        "id, status, amount_cents, due_date, tenant_id, landlord_id, created_at";
+      const paySel =
+        "id, status, amount_cents, invoice_id, created_at, reference";
+      const recSel = "id, invoice_id, created_at, pdf_url";
 
-    // PAYMENTS — search by id (uuid) or status
-    if (isUuid(q)) {
-      const { data } = await sb.from("payments").select("*").eq("id", q).limit(limit);
-      payments = data ?? [];
-    } else {
-      const { data } = await sb
-        .from("payments")
-        .select("*")
-        .ilike("status", `%${q}%`)
-        .limit(limit);
-      payments = data ?? [];
-    }
-
-    // RECEIPTS — primarily by id
-    if (isUuid(q)) {
-      const { data } = await sb.from("receipts").select("*").eq("id", q).limit(limit);
-      receipts = data ?? [];
-    } else {
-      receipts = []; // no safe text columns to search broadly
-    }
-
-    // REWARD REDEMPTIONS — by id or voucher_code
-    if (isUuid(q)) {
-      const { data } = await sb
-        .from("reward_redemptions")
-        .select("*")
-        .eq("id", q)
-        .limit(limit);
-      redemptions = data ?? [];
-    } else {
-      const { data } = await sb
-        .from("reward_redemptions")
-        .select("*")
-        .ilike("voucher_code", `%${q}%`)
-        .limit(limit);
-      redemptions = data ?? [];
+      const [{ data: invs }, { data: pays }, { data: recs }] = await Promise.all(
+        [
+          sb.from("invoices").select(invSel as any).eq("id", q).limit(1),
+          sb.from("payments").select(paySel as any).eq("id", q).limit(1),
+          sb.from("receipts").select(recSel as any).eq("id", q).limit(1),
+        ]
+      );
+      invoices = invs ?? [];
+      payments = pays ?? [];
+      receipts = recs ?? [];
     }
   }
 
-  const count = (arr: any[]) => (Array.isArray(arr) ? arr.length : 0);
-
-  const exportUrl = `/admin/api/search/csv?${new URLSearchParams({
-    q,
-    limit: String(limit),
-  }).toString()}`;
-
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <main className="max-w-6xl mx-auto p-6 space-y-8">
+      <header className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Global Search</h1>
-        <form className="flex items-center gap-2">
-          <input
-            name="q"
-            defaultValue={q}
-            placeholder="ID, email, voucher…"
-            className="rounded-lg border px-3 py-2 bg-transparent min-w-72"
-          />
-          <input
-            type="number"
-            name="limit"
-            min={1}
-            max={200}
-            defaultValue={limit}
-            className="w-24 rounded-lg border px-3 py-2 bg-transparent"
-            title="Max rows per section"
-          />
-          <button
-            type="submit"
-            className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50 dark:hover:bg-neutral-900"
-          >
-            Search
-          </button>
-          {q && (
-            <a
-              href={exportUrl}
-              className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50 dark:hover:bg-neutral-900"
-            >
-              Export CSV
-            </a>
-          )}
-        </form>
-      </div>
+        <Link
+          href="/admin"
+          className="text-sm underline underline-offset-4 hover:opacity-80"
+        >
+          ← Back to Admin
+        </Link>
+      </header>
 
-      {!q && (
-        <div className="text-sm opacity-70">
-          Tip: paste a UUID (invoice/payment/receipt/redemption ID), an email/name, a{" "}
-          <code>voucher_code</code>, or a status like <code>PAID</code> /{" "}
-          <code>OVERDUE</code>.
-        </div>
-      )}
+      {/* Search Form */}
+      <form method="get" className="flex gap-3">
+        <input
+          type="text"
+          name="q"
+          defaultValue={q}
+          placeholder="Search email/name — or paste a UUID id"
+          className="w-full rounded-xl border px-3 py-2"
+        />
+        <button
+          type="submit"
+          className="rounded-xl border px-4 py-2 hover:bg-black/5"
+        >
+          Search
+        </button>
+      </form>
 
-      {q && (
-        <div className="space-y-8">
+      {!q ? (
+        <section className="text-sm text-gray-600">
+          <p className="mb-2">
+            Tips:
+          </p>
+          <ul className="list-disc ml-5 space-y-1">
+            <li>Search <b>profiles</b> by email or full name.</li>
+            <li>
+              Paste an <b>exact UUID</b> to fetch a specific Invoice / Payment / Receipt by <code>id</code>.
+            </li>
+          </ul>
+        </section>
+      ) : (
+        <>
           {/* Profiles */}
           <section>
-            <h2 className="text-lg font-medium">
-              Profiles <span className="opacity-60">({count(profiles)})</span>
+            <h2 className="text-lg font-semibold mb-2">
+              Profiles <span className="text-gray-500">({profiles.length})</span>
             </h2>
-            <div className="overflow-x-auto mt-2">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="text-left border-b">
-                    <th className="py-2 pr-3">Name</th>
-                    <th className="py-2 pr-3">Email</th>
-                    <th className="py-2 pr-3">Role</th>
-                    <th className="py-2 pr-3">ID</th>
-                    <th className="py-2 pr-3">Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {profiles.map((p: any) => (
-                    <tr key={p.id} className="border-b">
-                      <td className="py-2 pr-3">{p.full_name ?? "—"}</td>
-                      <td className="py-2 pr-3">{p.email ?? "—"}</td>
-                      <td className="py-2 pr-3">{p.role ?? "—"}</td>
-                      <td className="py-2 pr-3 text-xs break-all">{p.id}</td>
-                      <td className="py-2 pr-3">
-                        {p.created_at ? new Date(p.created_at).toLocaleString() : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                  {profiles.length === 0 && (
+            {profiles.length === 0 ? (
+              <div className="text-sm text-gray-600">No profiles.</div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50">
                     <tr>
-                      <td colSpan={5} className="py-4 text-center opacity-70">
-                        No matches.
-                      </td>
+                      <th className="text-left p-2">Name</th>
+                      <th className="text-left p-2">Email</th>
+                      <th className="text-left p-2">Role</th>
+                      <th className="text-left p-2">ID</th>
+                      <th className="text-left p-2">Created</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {profiles.map((p) => (
+                      <tr key={p.id} className="odd:bg-white even:bg-gray-50">
+                        <td className="p-2">{p.full_name ?? "—"}</td>
+                        <td className="p-2">{p.email ?? "—"}</td>
+                        <td className="p-2">{p.role ?? "—"}</td>
+                        <td className="p-2 break-all">{p.id}</td>
+                        <td className="p-2">
+                          {p.created_at
+                            ? new Date(p.created_at).toLocaleString()
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
 
           {/* Invoices */}
           <section>
-            <h2 className="text-lg font-medium">
-              Invoices <span className="opacity-60">({count(invoices)})</span>
+            <h2 className="text-lg font-semibold mb-2">
+              Invoices <span className="text-gray-500">({invoices.length})</span>
             </h2>
-            <div className="overflow-x-auto mt-2">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="text-left border-b">
-                    <th className="py-2 pr-3">Status</th>
-                    <th className="py-2 pr-3">Amount</th>
-                    <th className="py-2 pr-3">Tenant</th>
-                    <th className="py-2 pr-3">ID</th>
-                    <th className="py-2 pr-3">Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoices.map((r: any) => (
-                    <tr key={r.id} className="border-b">
-                      <td className="py-2 pr-3">{r.status ?? "—"}</td>
-                      <td className="py-2 pr-3">
-                        {"amount_cents" in r && typeof r.amount_cents === "number"
-                          ? (r.amount_cents / 100).toFixed(2)
-                          : "—"}
-                      </td>
-                      <td className="py-2 pr-3 text-xs break-all">{r.tenant_id ?? "—"}</td>
-                      <td className="py-2 pr-3 text-xs break-all">{r.id}</td>
-                      <td className="py-2 pr-3">
-                        {r.created_at ? new Date(r.created_at).toLocaleString() : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                  {invoices.length === 0 && (
+            {invoices.length === 0 ? (
+              <div className="text-sm text-gray-600">
+                {isUUID ? "No invoices for that id." : "Paste a UUID id to search invoices."}
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50">
                     <tr>
-                      <td colSpan={5} className="py-4 text-center opacity-70">
-                        No matches.
-                      </td>
+                      <th className="text-left p-2">ID</th>
+                      <th className="text-left p-2">Status</th>
+                      <th className="text-left p-2">Amount</th>
+                      <th className="text-left p-2">Due</th>
+                      <th className="text-left p-2">Tenant</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {invoices.map((r) => (
+                      <tr key={r.id} className="odd:bg-white even:bg-gray-50">
+                        <td className="p-2 break-all">{r.id}</td>
+                        <td className="p-2">{r.status ?? "—"}</td>
+                        <td className="p-2">
+                          {typeof r.amount_cents === "number"
+                            ? (r.amount_cents / 100).toFixed(2)
+                            : "—"}
+                        </td>
+                        <td className="p-2">
+                          {r.due_date ? new Date(r.due_date).toLocaleDateString() : "—"}
+                        </td>
+                        <td className="p-2 break-all">{r.tenant_id ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
 
           {/* Payments */}
           <section>
-            <h2 className="text-lg font-medium">
-              Payments <span className="opacity-60">({count(payments)})</span>
+            <h2 className="text-lg font-semibold mb-2">
+              Payments <span className="text-gray-500">({payments.length})</span>
             </h2>
-            <div className="overflow-x-auto mt-2">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="text-left border-b">
-                    <th className="py-2 pr-3">Status</th>
-                    <th className="py-2 pr-3">Amount</th>
-                    <th className="py-2 pr-3">Invoice</th>
-                    <th className="py-2 pr-3">ID</th>
-                    <th className="py-2 pr-3">Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map((r: any) => (
-                    <tr key={r.id} className="border-b">
-                      <td className="py-2 pr-3">{r.status ?? "—"}</td>
-                      <td className="py-2 pr-3">
-                        {"amount_cents" in r && typeof r.amount_cents === "number"
-                          ? (r.amount_cents / 100).toFixed(2)
-                          : "—"}
-                      </td>
-                      <td className="py-2 pr-3 text-xs break-all">{r.invoice_id ?? "—"}</td>
-                      <td className="py-2 pr-3 text-xs break-all">{r.id}</td>
-                      <td className="py-2 pr-3">
-                        {r.created_at ? new Date(r.created_at).toLocaleString() : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                  {payments.length === 0 && (
+            {payments.length === 0 ? (
+              <div className="text-sm text-gray-600">
+                {isUUID ? "No payments for that id." : "Paste a UUID id to search payments."}
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50">
                     <tr>
-                      <td colSpan={5} className="py-4 text-center opacity-70">
-                        No matches.
-                      </td>
+                      <th className="text-left p-2">ID</th>
+                      <th className="text-left p-2">Status</th>
+                      <th className="text-left p-2">Amount</th>
+                      <th className="text-left p-2">Invoice</th>
+                      <th className="text-left p-2">Created</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {payments.map((r) => (
+                      <tr key={r.id} className="odd:bg-white even:bg-gray-50">
+                        <td className="p-2 break-all">{r.id}</td>
+                        <td className="p-2">{r.status ?? "—"}</td>
+                        <td className="p-2">
+                          {typeof r.amount_cents === "number"
+                            ? (r.amount_cents / 100).toFixed(2)
+                            : "—"}
+                        </td>
+                        <td className="p-2 break-all">{r.invoice_id ?? "—"}</td>
+                        <td className="p-2">
+                          {r.created_at
+                            ? new Date(r.created_at).toLocaleString()
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
 
           {/* Receipts */}
           <section>
-            <h2 className="text-lg font-medium">
-              Receipts <span className="opacity-60">({count(receipts)})</span>
+            <h2 className="text-lg font-semibold mb-2">
+              Receipts <span className="text-gray-500">({receipts.length})</span>
             </h2>
-            <div className="overflow-x-auto mt-2">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="text-left border-b">
-                    <th className="py-2 pr-3">Invoice</th>
-                    <th className="py-2 pr-3">Payment</th>
-                    <th className="py-2 pr-3">ID</th>
-                    <th className="py-2 pr-3">Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {receipts.map((r: any) => (
-                    <tr key={r.id} className="border-b">
-                      <td className="py-2 pr-3 text-xs break-all">{r.invoice_id ?? "—"}</td>
-                      <td className="py-2 pr-3 text-xs break-all">{r.payment_id ?? "—"}</td>
-                      <td className="py-2 pr-3 text-xs break-all">{r.id}</td>
-                      <td className="py-2 pr-3">
-                        {r.created_at ? new Date(r.created_at).toLocaleString() : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                  {receipts.length === 0 && (
+            {receipts.length === 0 ? (
+              <div className="text-sm text-gray-600">
+                {isUUID ? "No receipts for that id." : "Paste a UUID id to search receipts."}
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50">
                     <tr>
-                      <td colSpan={4} className="py-4 text-center opacity-70">
-                        No matches.
-                      </td>
+                      <th className="text-left p-2">ID</th>
+                      <th className="text-left p-2">Invoice</th>
+                      <th className="text-left p-2">Created</th>
+                      <th className="text-left p-2">PDF</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {receipts.map((r) => (
+                      <tr key={r.id} className="odd:bg-white even:bg-gray-50">
+                        <td className="p-2 break-all">{r.id}</td>
+                        <td className="p-2 break-all">{r.invoice_id ?? "—"}</td>
+                        <td className="p-2">
+                          {r.created_at
+                            ? new Date(r.created_at).toLocaleString()
+                            : "—"}
+                        </td>
+                        <td className="p-2">
+                          {r.pdf_url ? (
+                            <a
+                              href={r.pdf_url}
+                              className="underline underline-offset-4"
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Open
+                            </a>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
-
-          {/* Reward redemptions */}
-          <section>
-            <h2 className="text-lg font-medium">
-              Reward Redemptions <span className="opacity-60">({count(redemptions)})</span>
-            </h2>
-            <div className="overflow-x-auto mt-2">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="text-left border-b">
-                    <th className="py-2 pr-3">User</th>
-                    <th className="py-2 pr-3">Offer</th>
-                    <th className="py-2 pr-3">Voucher</th>
-                    <th className="py-2 pr-3">Points</th>
-                    <th className="py-2 pr-3">ID</th>
-                    <th className="py-2 pr-3">Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {redemptions.map((r: any) => (
-                    <tr key={r.id} className="border-b">
-                      <td className="py-2 pr-3 text-xs break-all">{r.user_id ?? "—"}</td>
-                      <td className="py-2 pr-3 text-xs break-all">{r.offer_id ?? "—"}</td>
-                      <td className="py-2 pr-3">{r.voucher_code ?? "—"}</td>
-                      <td className="py-2 pr-3">
-                        {"points_cost" in r ? r.points_cost : "—"}
-                      </td>
-                      <td className="py-2 pr-3 text-xs break-all">{r.id}</td>
-                      <td className="py-2 pr-3">
-                        {r.created_at ? new Date(r.created_at).toLocaleString() : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                  {redemptions.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="py-4 text-center opacity-70">
-                        No matches.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </div>
+        </>
       )}
-    </div>
+    </main>
   );
 }
