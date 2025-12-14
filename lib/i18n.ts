@@ -1,23 +1,27 @@
-// lib/i18n.ts (shared-only; safe for client and server imports)
+// lib/i18n.ts  (shared-only; safe in client & server)
 
-/** Languages & Theme */
 export type Lang = 'en' | 'ur';
 export type Theme = 'light' | 'dark' | 'system';
 
-/** Map arbitrary locale strings to our supported Langs */
+/** Normalize arbitrary locale -> our supported langs */
 export function resolveLocale(input?: string | null): Lang {
-  const val = (input || '').toLowerCase();
-  if (val.startsWith('ur')) return 'ur';
+  const v = (input || '').toLowerCase();
+  if (v.startsWith('ur')) return 'ur';
   return 'en';
 }
 
-/** RTL/LTR helpers */
+/** Back-compat alias some code expects */
+export function getLang(input?: string | null): Lang {
+  return resolveLocale(input);
+}
+
+/** Text direction helper */
 export function getDir(lang: Lang): 'ltr' | 'rtl' {
   return lang === 'ur' ? 'rtl' : 'ltr';
 }
 
 /** Minimal copy dictionary (extend as needed) */
-const copy = {
+const dict = {
   en: {
     language: 'Language',
     english: 'English',
@@ -31,5 +35,5 @@ const copy = {
 } satisfies Record<Lang, Record<string, string>>;
 
 export function getCopy(lang: Lang) {
-  return copy[lang] || copy.en;
+  return dict[lang] || dict.en;
 }
