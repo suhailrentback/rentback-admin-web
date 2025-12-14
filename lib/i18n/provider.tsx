@@ -1,4 +1,3 @@
-// lib/i18n/provider.tsx
 'use client';
 
 import React, { createContext, useContext, useMemo } from 'react';
