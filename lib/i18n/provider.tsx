@@ -5,12 +5,7 @@ import React, { createContext, useContext, useMemo } from 'react';
 import type { Lang, Theme } from '../i18n';
 import { getDir } from '../i18n';
 
-type I18nCtx = {
-  lang: Lang;
-  theme: Theme;
-  dir: 'ltr' | 'rtl';
-};
-
+type I18nCtx = { lang: Lang; theme: Theme; dir: 'ltr' | 'rtl' };
 const I18nContext = createContext<I18nCtx | null>(null);
 
 export function I18nProvider({
@@ -22,10 +17,7 @@ export function I18nProvider({
   theme?: Theme;
   children: React.ReactNode;
 }) {
-  const value = useMemo<I18nCtx>(
-    () => ({ lang, theme, dir: getDir(lang) }),
-    [lang, theme]
-  );
+  const value = useMemo(() => ({ lang, theme, dir: getDir(lang) }), [lang, theme]);
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 
