@@ -1,5 +1,4 @@
 // app/admin/audit/page.tsx
-import { cookies } from "next/headers";
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
 
@@ -37,7 +36,7 @@ export default async function Page({
   const actor = (sp.actor ?? "").trim();
   const entity = (sp.entity ?? "").trim();
 
-  const sb = await createServerSupabase(cookies);
+  const sb = await createServerSupabase();
   // AuthZ: ensure staff/admin
   const { data: userRes } = await sb.auth.getUser();
   if (!userRes?.user) throw new Error("Not authenticated");
@@ -62,7 +61,6 @@ export default async function Page({
   if (actor) query = query.ilike("actor_email", `%${actor}%`);
   if (entity) query = query.ilike("table_name", `%${entity}%`);
   if (q) {
-    // fuzzy on action / details / row_id
     query = query.or(
       [
         `action.ilike.%${q}%`,
@@ -80,7 +78,8 @@ export default async function Page({
   if (error) throw error;
 
   const base = "/admin/audit";
-  const exportHref = `/admin/api/audit/export?` +
+  const exportHref =
+    `/admin/api/audit/export?` +
     new URLSearchParams({
       q,
       actor,
