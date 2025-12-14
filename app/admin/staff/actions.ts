@@ -1,58 +1,40 @@
+// app/admin/staff/actions.ts
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createRouteSupabase } from "@/lib/supabase/server";
-
-type Role = "tenant" | "landlord" | "staff" | "admin";
-
-async function requireAdmin() {
-  const sb = createRouteSupabase();
-  const { data: ures, error: uerr } = await sb.auth.getUser();
-  if (uerr || !ures?.user) throw new Error("Not authenticated");
-
-  const { data: me, error: merr } = await sb
-    .from("profiles")
-    .select("id, email, full_name, role")
-    .eq("id", ures.user.id)
-    .single();
-
-  if (merr || !me) throw new Error("Profile not found");
-  if (me.role !== "admin") throw new Error("Only admin can change roles");
-  return { sb, me };
-}
+import { createServerSupabase } from "@/lib/supabase";
 
 export async function setUserRole(formData: FormData): Promise<void> {
-  const { sb, me } = await requireAdmin();
+  const userId = String(formData.get("userId") ?? "").trim();
+  const role = String(formData.get("role") ?? "").trim().toLowerCase();
 
-  const userId = String(formData.get("userId") ?? "");
-  const newRole = String(formData.get("role") ?? "") as Role;
+  if (!userId) return;
+  if (!["tenant", "landlord", "staff", "admin"].includes(role)) return;
 
-  const allowed: Role[] = ["tenant", "landlord", "staff", "admin"];
-  if (!allowed.includes(newRole)) throw new Error("Invalid role");
-  if (!userId) throw new Error("Missing userId");
+  const sb = createServerSupabase();
 
-  // Safety: don't let the current admin demote themselves by accident
-  if (me.id === userId && newRole !== "admin") {
-    throw new Error("Refusing to demote current admin (self)");
-  }
+  // Require current user to be staff/admin
+  const { data: me } = await sb.auth.getUser();
+  if (!me?.user) return;
 
-  const { error: uerr } = await sb
+  const { data: meProfile } = await sb
     .from("profiles")
-    .update({ role: newRole })
-    .eq("id", userId);
-  if (uerr) throw uerr;
+    .select("role")
+    .eq("id", me.user.id)
+    .single();
 
-  // Audit trail
+  if (!meProfile || !["staff", "admin"].includes(meProfile.role)) return;
+
+  // Update role
+  await sb.from("profiles").update({ role }).eq("id", userId);
+
+  // Optional: audit log
   await sb.from("audit_log").insert({
-    actor_id: me.id,
-    actor_email: me.email,
-    actor_role: me.role,
-    action: "staff:set_role",
-    table_name: "profiles",
-    row_id: userId,
-    details: `role->${newRole}`,
+    action: "staff:set-role",
+    entity: "profile",
+    record_id: userId,
+    summary: `role -> ${role}`,
   });
 
-  // Refresh the table
   revalidatePath("/admin/staff");
 }
