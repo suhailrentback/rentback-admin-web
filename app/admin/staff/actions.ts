@@ -1,4 +1,3 @@
-// app/admin/staff/actions.ts
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -6,39 +5,59 @@ import { createRouteSupabase } from "@/lib/supabase/server";
 
 type Role = "tenant" | "landlord" | "staff" | "admin";
 
-async function assertStaff() {
-  const sb = await createRouteSupabase();
-  const { data: userRes } = await sb.auth.getUser();
-  if (!userRes?.user) throw new Error("unauthenticated");
-  const { data: me, error } = await sb
+async function requireAdmin() {
+  const sb = createRouteSupabase();
+  const { data: ures, error: uerr } = await sb.auth.getUser();
+  if (uerr || !ures?.user) throw new Error("Not authenticated");
+
+  const { data: me, error: merr } = await sb
     .from("profiles")
-    .select("id, role, email")
-    .eq("id", userRes.user.id)
+    .select("id, email, full_name, role")
+    .eq("id", ures.user.id)
     .single();
-  if (error) throw error;
-  if (!me || !["staff", "admin"].includes(String(me.role))) throw new Error("forbidden");
+
+  if (merr || !me) throw new Error("Profile not found");
+  if (me.role !== "admin") throw new Error("Only admin can change roles");
+
   return { sb, me };
 }
 
-export async function setUserRole(userId: string, role: Role) {
-  const { sb } = await assertStaff();
+export async function setUserRole(formData: FormData) {
+  const { sb, me } = await requireAdmin();
 
-  if (role !== "admin") {
-    const { data: target } = await sb.from("profiles").select("id, role").eq("id", userId).single();
-    if (target?.role === "admin") {
-      const { count } = await sb
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .eq("role", "admin");
-      if ((count ?? 0) <= 1) {
-        throw new Error("Cannot demote the last admin");
-      }
-    }
+  const userId = String(formData.get("userId") ?? "");
+  const newRole = String(formData.get("role") ?? "") as Role;
+
+  const allowed: Role[] = ["tenant", "landlord", "staff", "admin"];
+  if (!allowed.includes(newRole)) throw new Error("Invalid role");
+
+  if (!userId) throw new Error("Missing userId");
+
+  // Optional guard: avoid self-demotion to prevent lockout
+  if (me.id === userId && newRole !== "admin") {
+    throw new Error("Refusing to demote current admin (self)");
   }
 
-  const { error } = await sb.from("profiles").update({ role }).eq("id", userId);
-  if (error) throw error;
+  // Update role
+  const { error: uerr } = await sb
+    .from("profiles")
+    .update({ role: newRole })
+    .eq("id", userId);
 
+  if (uerr) throw uerr;
+
+  // Audit
+  await sb.from("audit_log").insert({
+    actor_id: me.id,
+    actor_email: me.email,
+    actor_role: me.role,
+    action: "staff:set_role",
+    table_name: "profiles",
+    row_id: userId,
+    details: `role->${newRole}`,
+  });
+
+  // Refresh the staff list page
   revalidatePath("/admin/staff");
   return { ok: true };
 }
