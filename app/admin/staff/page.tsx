@@ -1,5 +1,4 @@
 // app/admin/staff/page.tsx
-import { cookies } from "next/headers";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { setUserRole } from "./actions";
 
@@ -11,7 +10,7 @@ export default async function Page({
   const q = (searchParams?.q ?? "").trim();
   const role = (searchParams?.role ?? "").trim();
 
-  const sb = await createServerSupabase(cookies);
+  const sb = await createServerSupabase();
   // AuthZ
   const { data: userRes } = await sb.auth.getUser();
   if (!userRes?.user) throw new Error("Not authenticated");
@@ -32,9 +31,7 @@ export default async function Page({
 
   if (role) query = query.eq("role", role);
   if (q) {
-    query = query.or(
-      [`email.ilike.%${q}%`, `full_name.ilike.%${q}%`].join(",")
-    );
+    query = query.or([`email.ilike.%${q}%`, `full_name.ilike.%${q}%`].join(","));
   }
 
   const { data: users = [], error } = await query;
