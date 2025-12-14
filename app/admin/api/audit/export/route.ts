@@ -1,6 +1,5 @@
 // app/admin/api/audit/export/route.ts
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { createRouteSupabase } from "@/lib/supabase/server";
 
 export async function GET(req: Request) {
@@ -13,7 +12,7 @@ export async function GET(req: Request) {
   const rawLimit = Number(url.searchParams.get("limit") ?? 5000);
   const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 20000) : 5000;
 
-  const sb = await createRouteSupabase(cookies);
+  const sb = await createRouteSupabase();
 
   // Staff/Admin only
   const { data: userRes } = await sb.auth.getUser();
