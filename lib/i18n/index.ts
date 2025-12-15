@@ -1,112 +1,73 @@
 'use client';
 
-import React, { createContext, useContext, useMemo } from 'react';
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
 export type Lang = 'en' | 'ur';
 export type Theme = 'light' | 'dark';
-
-export function getDir(lang: Lang): 'ltr' | 'rtl' {
-  return lang === 'ur' ? 'rtl' : 'ltr';
-}
-
-/** ---- Copy types ---- **/
-type AdminLandingCopy = {
-  title: string;
-  subtitle: string;
-  ctaPrimary: string;
-  ctaSecondary: string;
-  manageProperties: string;
-  manageTenants: string;
-  manageInvoices: string;
-  manageRewards: string;
-} & Record<string, string>;
 
 type Copy = {
   language: string;
   english: string;
   urdu: string;
-  adminLanding: AdminLandingCopy;
+  adminLanding: {
+    title: string;
+    subtitle: string;
+  };
 };
 
-/** ---- Actual copy ---- **/
-const COPIES: Record<Lang, Copy> = {
-  en: {
-    language: 'Language',
-    english: 'English',
-    urdu: 'Urdu',
-    adminLanding: {
-      title: 'RentBack Admin',
-      subtitle: 'Operate your portfolio: properties, tenants, invoices, payments & rewards.',
-      ctaPrimary: 'Go to Dashboard',
-      ctaSecondary: 'View Docs',
-      manageProperties: 'Manage Properties',
-      manageTenants: 'Manage Tenants',
-      manageInvoices: 'Invoices & Payments',
-      manageRewards: 'Rewards & Offers',
-    },
-  },
-  ur: {
-    language: 'زبان',
-    english: 'انگریزی',
-    urdu: 'اردو',
-    adminLanding: {
-      title: 'RentBack ایڈمن',
-      subtitle: 'اپنے پورٹ فولیو کو چلائیں: جائیدادیں، کرایہ دار، انوائسز، ادائیگیاں اور انعامات۔',
-      ctaPrimary: 'ڈیش بورڈ پر جائیں',
-      ctaSecondary: 'دستاویزات دیکھیں',
-      manageProperties: 'جائیدادیں',
-      manageTenants: 'کرایہ دار',
-      manageInvoices: 'انوائسز اور ادائیگیاں',
-      manageRewards: 'انعامات اور آفرز',
-    },
+const en: Copy = {
+  language: 'Language',
+  english: 'English',
+  urdu: 'Urdu',
+  adminLanding: {
+    title: 'RentBack Admin',
+    subtitle: 'Manage staff, tenants, invoices, and audit logs.',
   },
 };
 
-/** Helper to read copy on either side */
+const ur: Copy = {
+  language: 'زبان',
+  english: 'انگریزی',
+  urdu: 'اردو',
+  adminLanding: {
+    title: 'رینٹ بیک ایڈمن',
+    subtitle: 'اسٹاف، کرایہ دار، انوائسز اور آڈٹ لاگز منظم کریں۔',
+  },
+};
+
+export const translations: Record<Lang, Copy> = { en, ur };
+
 export function getCopy(lang: Lang): Copy {
-  return COPIES[lang] ?? COPIES.en;
+  return translations[lang] ?? en;
 }
 
-/**
- * Safe client util for server or client components that don’t want to
- * pull cookies. On the server it will just return the default.
- */
-export function getLang(defaultLang: Lang = 'en'): Lang {
-  if (typeof document !== 'undefined') {
-    const htmlLang = document.documentElement.getAttribute('lang');
-    return htmlLang === 'ur' ? 'ur' : 'en';
-  }
-  return defaultLang;
+export function getLang(value?: string | null): Lang {
+  const v = (value ?? '').toLowerCase();
+  return v === 'ur' ? 'ur' : 'en';
 }
 
-/** ---- Context for client components ---- **/
-type I18nCtx = {
+type Ctx = {
   lang: Lang;
   dir: 'ltr' | 'rtl';
   copy: Copy;
-  t: <T = any>(selector: (c: Copy) => T) => T;
+  t: <K extends keyof Copy>(k: K) => Copy[K];
 };
 
-const I18nContext = createContext<I18nCtx>({
-  lang: 'en',
-  dir: 'ltr',
-  copy: COPIES.en,
-  t: (sel) => sel(COPIES.en),
-});
+const I18nContext = createContext<Ctx | null>(null);
 
 export function I18nProvider({
   lang,
-  theme, // reserved if you want to thread theme later
+  theme, // reserved for future
   children,
 }: {
   lang: Lang;
   theme?: Theme;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
-  const value = useMemo<I18nCtx>(() => {
+  const value = useMemo<Ctx>(() => {
+    const dir = lang === 'ur' ? 'rtl' : 'ltr';
     const copy = getCopy(lang);
-    const dir = getDir(lang);
-    const t = <T,>(selector: (c: Copy) => T) => selector(copy);
+    const t = <K extends keyof Copy>(k: K) => copy[k];
     return { lang, dir, copy, t };
   }, [lang]);
 
@@ -114,5 +75,7 @@ export function I18nProvider({
 }
 
 export function useI18n() {
-  return useContext(I18nContext);
+  const ctx = useContext(I18nContext);
+  if (!ctx) throw new Error('useI18n must be used inside I18nProvider');
+  return ctx;
 }
