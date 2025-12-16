@@ -1,82 +1,47 @@
 // lib/i18n/index.tsx
-'use client';
+"use client";
 
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import React, { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { getCopy, dirFor, type Lang, type Theme } from "../i18n";
 
-export type Lang = 'en' | 'ur';
-export type Theme = 'light' | 'dark';
-
-type Copy = {
-  language: string;
-  english: string;
-  urdu: string;
-  adminLanding: {
-    title: string;
-    subtitle: string;
-  };
-};
-
-const en: Copy = {
-  language: 'Language',
-  english: 'English',
-  urdu: 'Urdu',
-  adminLanding: {
-    title: 'RentBack Admin',
-    subtitle: 'Manage staff, tenants, invoices, and audit logs.',
-  },
-};
-
-const ur: Copy = {
-  language: 'زبان',
-  english: 'انگریزی',
-  urdu: 'اردو',
-  adminLanding: {
-    title: 'رینٹ بیک ایڈمن',
-    subtitle: 'اسٹاف، کرایہ دار، انوائسز اور آڈٹ لاگز منظم کریں۔',
-  },
-};
-
-export const translations: Record<Lang, Copy> = { en, ur };
-
-export function getCopy(lang: Lang): Copy {
-  return translations[lang] ?? en;
-}
-
-export function getLang(value?: string | null): Lang {
-  const v = (value ?? '').toLowerCase();
-  return v === 'ur' ? 'ur' : 'en';
-}
-
-type Ctx = {
+type I18nContextValue = {
   lang: Lang;
-  dir: 'ltr' | 'rtl';
-  copy: Copy;
-  t: <K extends keyof Copy>(k: K) => Copy[K];
+  dir: "ltr" | "rtl";
+  copy: ReturnType<typeof getCopy>;
+  t: (s: string) => string;
+  setLang: (l: Lang) => void;
 };
 
-const I18nContext = createContext<Ctx | null>(null);
+const I18nContext = createContext<I18nContextValue | null>(null);
 
-export function I18nProvider({
-  lang,
-  theme,
-  children,
-}: {
-  lang: Lang;
+// Accept both 'lang' and legacy 'initialLang' prop to be backward-compatible
+type Props = {
+  lang?: Lang;
+  initialLang?: Lang; // legacy
   theme?: Theme;
   children: ReactNode;
-}) {
-  const value = useMemo<Ctx>(() => {
-    const dir = lang === 'ur' ? 'rtl' : 'ltr';
-    const copy = getCopy(lang);
-    const t = <K extends keyof Copy>(k: K) => copy[k];
-    return { lang, dir, copy, t };
-  }, [lang]);
+};
+
+export function I18nProvider({ lang, initialLang, children }: Props) {
+  const [currentLang, setCurrentLang] = useState<Lang>(lang ?? initialLang ?? "en");
+
+  const value = useMemo<I18nContextValue>(() => {
+    const copy = getCopy(currentLang);
+    const dir = dirFor(currentLang);
+    return {
+      lang: currentLang,
+      dir,
+      copy,
+      t: (s: string) => s,
+      setLang: setCurrentLang,
+    };
+  }, [currentLang]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 
 export function useI18n() {
   const ctx = useContext(I18nContext);
-  if (!ctx) throw new Error('useI18n must be used inside I18nProvider');
+  if (!ctx) throw new Error("useI18n must be used within <I18nProvider>");
   return ctx;
 }
