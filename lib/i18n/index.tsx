@@ -1,47 +1,44 @@
-// lib/i18n/index.tsx
 "use client";
 
-import React, { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import { getCopy, dirFor, type Lang, type Theme } from "../i18n";
+import React, { createContext, useContext, useMemo } from "react";
+import type { Lang, Theme } from "../i18n";
+import { getCopy, dirFor } from "../i18n";
 
-type I18nContextValue = {
+type Ctx = {
   lang: Lang;
   dir: "ltr" | "rtl";
-  copy: ReturnType<typeof getCopy>;
-  t: (s: string) => string;
-  setLang: (l: Lang) => void;
-};
-
-const I18nContext = createContext<I18nContextValue | null>(null);
-
-// Accept both 'lang' and legacy 'initialLang' prop to be backward-compatible
-type Props = {
-  lang?: Lang;
-  initialLang?: Lang; // legacy
   theme?: Theme;
-  children: ReactNode;
+  copy: ReturnType<typeof getCopy>;
+  t: (path: string) => string;
 };
 
-export function I18nProvider({ lang, initialLang, children }: Props) {
-  const [currentLang, setCurrentLang] = useState<Lang>(lang ?? initialLang ?? "en");
+const I18nContext = createContext<Ctx | null>(null);
 
-  const value = useMemo<I18nContextValue>(() => {
-    const copy = getCopy(currentLang);
-    const dir = dirFor(currentLang);
-    return {
-      lang: currentLang,
-      dir,
-      copy,
-      t: (s: string) => s,
-      setLang: setCurrentLang,
+export function I18nProvider({
+  lang,
+  theme,
+  children,
+}: {
+  lang: Lang;
+  theme?: Theme;
+  children: React.ReactNode;
+}) {
+  const value = useMemo(() => {
+    const copy = getCopy(lang);
+    const t = (path: string) => {
+      const parts = path.split(".");
+      let cur: any = copy;
+      for (const p of parts) cur = cur?.[p];
+      return typeof cur === "string" ? cur : "";
     };
-  }, [currentLang]);
+    return { lang, dir: dirFor(lang), theme, copy, t };
+  }, [lang, theme]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 
 export function useI18n() {
   const ctx = useContext(I18nContext);
-  if (!ctx) throw new Error("useI18n must be used within <I18nProvider>");
+  if (!ctx) throw new Error("useI18n must be used within I18nProvider");
   return ctx;
 }
