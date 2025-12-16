@@ -11,8 +11,17 @@ export type AdminLandingCopy = {
   bullets: string[];
 };
 
-// To keep old imports working, we return both the flat fields AND a nested `adminLanding`
-export type CopyRoot = AdminLandingCopy & { adminLanding: AdminLandingCopy };
+// Footer/headers/etc. may grab arbitrary keys off `common`,
+// so we give it a broad index signature to avoid TS errors
+// if a component reads a key we didn’t enumerate yet.
+export type CommonCopy = Record<string, string>;
+
+// Return both flat fields (for new code) AND a nested `adminLanding`
+// (for older code that still calls getCopy(lang).adminLanding)
+export type CopyRoot = AdminLandingCopy & {
+  adminLanding: AdminLandingCopy;
+  common: CommonCopy;
+};
 
 // ---- Copy ----
 export function getCopy(lang: Lang): CopyRoot {
@@ -28,27 +37,51 @@ export function getCopy(lang: Lang): CopyRoot {
           title: "RentBack Admin",
           subtitle: "Live demo • Minimal UI • Fast workflows",
           signInCta: "Sign in",
-          bullets: ["Light / Dark theme", "English / Urdu (RTL) toggle", "Demo mode enabled"],
+          bullets: ["Light/Dark theme", "English/Urdu (RTL) toggle", "Demo mode enabled"],
         };
 
-  // Return both flat fields and a nested alias for backward compatibility
-  return { ...base, adminLanding: base };
+  const common: CommonCopy =
+    lang === "ur"
+      ? {
+          appName: "RentBack",
+          rights: `© ${new Date().getFullYear()} RentBack. جملہ حقوق محفوظ ہیں۔`,
+          madeWithLove: "محبت کے ساتھ بنایا گیا",
+          language: "زبان",
+          theme: "تھیم",
+          light: "لائٹ",
+          dark: "ڈارک",
+          contact: "help@rentback.app",
+          privacy: "پرائیویسی",
+          terms: "شرائط",
+        }
+      : {
+          appName: "RentBack",
+          rights: `© ${new Date().getFullYear()} RentBack. All rights reserved.`,
+          madeWithLove: "Made with love",
+          language: "Language",
+          theme: "Theme",
+          light: "Light",
+          dark: "Dark",
+          contact: "help@rentback.app",
+          privacy: "Privacy",
+          terms: "Terms",
+        };
+
+  return { ...base, adminLanding: base, common };
 }
 
-// Minimal lang getter (server-aware version lives in lib/i18n/server.ts)
+// Minimal no-deps helpers (server-aware versions can live in lib/i18n/server.ts)
 export function getLang(): Lang {
   return "en";
 }
 
-// For routes that called resolveLocale(langParam)
 export function resolveLocale(input?: string | null): Lang {
   return input === "ur" ? "ur" : "en";
 }
 
-// Direction helper (optional)
 export function dirFor(lang: Lang): "ltr" | "rtl" {
   return lang === "ur" ? "rtl" : "ltr";
 }
 
-// Re-export the client provider & hook so imports from "@/lib/i18n" keep working
+// Re-export client provider & hook so imports from "@/lib/i18n" keep working
 export { I18nProvider, useI18n } from "./i18n/index";
