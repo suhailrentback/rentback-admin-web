@@ -13,7 +13,7 @@ export default function FloatingThemeSwitch() {
       body: JSON.stringify({ theme: next }),
     });
     start(() => {
-      // reload to let server apply class to <html>
+      // reload so the server applies <html class="dark"> on first paint
       window.location.reload();
     });
   };
