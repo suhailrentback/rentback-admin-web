@@ -11,26 +11,31 @@ export type AdminLandingCopy = {
   bullets: string[];
 };
 
+// To keep old imports working, we return both the flat fields AND a nested `adminLanding`
+export type CopyRoot = AdminLandingCopy & { adminLanding: AdminLandingCopy };
+
 // ---- Copy ----
-export function getCopy(lang: Lang): AdminLandingCopy {
-  if (lang === "ur") {
-    return {
-      title: "RentBack Admin",
-      subtitle: "چلتی ڈیمو • سادہ UI • تیز رفتار ورک فلو",
-      signInCta: "سائن ان کریں",
-      bullets: ["لائٹ / ڈارک تھیم", "انگلش / اردو (RTL) سوئچ", "ڈیمو موڈ آن"],
-    };
-  }
-  return {
-    title: "RentBack Admin",
-    subtitle: "Live demo • Minimal UI • Fast workflows",
-    signInCta: "Sign in",
-    bullets: ["Light / Dark theme", "English / Urdu (RTL) toggle", "Demo mode enabled"],
-  };
+export function getCopy(lang: Lang): CopyRoot {
+  const base: AdminLandingCopy =
+    lang === "ur"
+      ? {
+          title: "RentBack Admin",
+          subtitle: "چلتی ڈیمو • سادہ UI • تیز رفتار ورک فلو",
+          signInCta: "سائن ان کریں",
+          bullets: ["لائٹ / ڈارک تھیم", "انگلش / اردو (RTL) سوئچ", "ڈیمو موڈ آن"],
+        }
+      : {
+          title: "RentBack Admin",
+          subtitle: "Live demo • Minimal UI • Fast workflows",
+          signInCta: "Sign in",
+          bullets: ["Light / Dark theme", "English / Urdu (RTL) toggle", "Demo mode enabled"],
+        };
+
+  // Return both flat fields and a nested alias for backward compatibility
+  return { ...base, adminLanding: base };
 }
 
-// Minimal lang getter used by server pages that previously called getLang()
-// (We default to English; server-aware cookie version lives in lib/i18n/server.ts)
+// Minimal lang getter (server-aware version lives in lib/i18n/server.ts)
 export function getLang(): Lang {
   return "en";
 }
