@@ -1,3 +1,4 @@
+// lib/i18n/index.tsx
 'use client';
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
@@ -57,7 +58,7 @@ const I18nContext = createContext<Ctx | null>(null);
 
 export function I18nProvider({
   lang,
-  theme, // reserved for future
+  theme,
   children,
 }: {
   lang: Lang;
