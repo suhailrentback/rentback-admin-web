@@ -1,3 +1,4 @@
+// lib/i18n/server.ts
 import { cookies } from 'next/headers';
 import type { Lang } from './index';
 
