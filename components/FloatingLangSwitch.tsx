@@ -1,19 +1,19 @@
 "use client";
 
-import { useI18n } from "@/lib/i18n/index";
 import { useTransition } from "react";
 
-export default function FloatingLangSwitch() {
-  const { lang } = useI18n();
-  const [isPending, startTransition] = useTransition();
+export default function FloatingThemeSwitch() {
+  const [isPending, start] = useTransition();
 
   const toggle = async () => {
-    const next = lang === "en" ? "ur" : "en";
+    const isDark = document.documentElement.classList.contains("dark");
+    const next = isDark ? "light" : "dark";
     await fetch("/api/prefs", {
       method: "POST",
-      body: JSON.stringify({ lang: next }),
+      body: JSON.stringify({ theme: next }),
     });
-    startTransition(() => {
+    start(() => {
+      // reload to let server apply class to <html>
       window.location.reload();
     });
   };
@@ -21,10 +21,11 @@ export default function FloatingLangSwitch() {
   return (
     <button
       onClick={toggle}
-      className="fixed bottom-4 right-4 px-3 py-2 rounded-xl border text-sm backdrop-blur"
-      aria-label="Toggle language"
+      className="fixed bottom-4 right-16 px-3 py-2 rounded-xl border text-sm backdrop-blur"
+      aria-label="Toggle theme"
+      title="Toggle theme"
     >
-      {isPending ? "…" : lang.toUpperCase()}
+      {isPending ? "…" : "Theme"}
     </button>
   );
 }
