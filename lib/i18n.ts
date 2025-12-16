@@ -1,7 +1,8 @@
 // lib/i18n.ts
-// Safe for both server and client: no next/headers imports here.
+// Shared i18n surface: types, copy, and re-exports. Safe for client & server.
 
 export type Lang = "en" | "ur";
+export type Theme = "light" | "dark";
 
 export type AdminLandingCopy = {
   title: string;
@@ -10,45 +11,39 @@ export type AdminLandingCopy = {
   bullets: string[];
 };
 
-type Copy = AdminLandingCopy;
-
-/**
- * getCopy
- * Returns the flat copy shape used by app/page.tsx:
- * { title, subtitle, signInCta, bullets }
- *
- * If you later prefer a namespaced shape (e.g., { adminLanding: {...} }),
- * you can keep this function as a convenience alias to that sub-object.
- */
-export function getCopy(lang: Lang): Copy {
+// ---- Copy ----
+export function getCopy(lang: Lang): AdminLandingCopy {
   if (lang === "ur") {
     return {
       title: "RentBack Admin",
       subtitle: "چلتی ڈیمو • سادہ UI • تیز رفتار ورک فلو",
       signInCta: "سائن ان کریں",
-      bullets: [
-        "لائٹ / ڈارک تھیم",
-        "انگلش / اردو (RTL) سوئچ",
-        "ڈیمو موڈ آن",
-      ],
+      bullets: ["لائٹ / ڈارک تھیم", "انگلش / اردو (RTL) سوئچ", "ڈیمو موڈ آن"],
     };
   }
-
-  // English (default)
   return {
     title: "RentBack Admin",
     subtitle: "Live demo • Minimal UI • Fast workflows",
     signInCta: "Sign in",
-    bullets: [
-      "Light / Dark theme",
-      "English / Urdu (RTL) toggle",
-      "Demo mode enabled",
-    ],
+    bullets: ["Light / Dark theme", "English / Urdu (RTL) toggle", "Demo mode enabled"],
   };
 }
 
-/**
- * Optional: if some parts of the app already call getAdminLandingCopy,
- * keep this alias so both usages compile.
- */
-export const getAdminLandingCopy = (lang: Lang): AdminLandingCopy => getCopy(lang);
+// Minimal lang getter used by server pages that previously called getLang()
+// (We default to English; server-aware cookie version lives in lib/i18n/server.ts)
+export function getLang(): Lang {
+  return "en";
+}
+
+// For routes that called resolveLocale(langParam)
+export function resolveLocale(input?: string | null): Lang {
+  return input === "ur" ? "ur" : "en";
+}
+
+// Direction helper (optional)
+export function dirFor(lang: Lang): "ltr" | "rtl" {
+  return lang === "ur" ? "rtl" : "ltr";
+}
+
+// Re-export the client provider & hook so imports from "@/lib/i18n" keep working
+export { I18nProvider, useI18n } from "./i18n/index";
