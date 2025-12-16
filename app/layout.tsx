@@ -1,12 +1,11 @@
+// app/layout.tsx
 import type { Metadata } from 'next';
-import { getLangFromCookies } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n';
+import { getLangFromCookies } from '@/lib/i18n/server';
 import FloatingLangSwitch from '@/components/FloatingLangSwitch';
 import SkipLink from '@/components/SkipLink';
 
-export const metadata: Metadata = {
-  title: 'RentBack Admin',
-};
+export const metadata: Metadata = { title: 'RentBack Admin' };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const lang = getLangFromCookies();
