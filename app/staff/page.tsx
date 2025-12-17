@@ -4,6 +4,16 @@ import ForceSignOutButton from '@/components/ForceSignOutButton';
 
 type Row = { id: string; email: string; last_sign_in_at: string | null };
 
+{/* at the top */}
+import RoleToggleButton from "@/components/RoleToggleButton";
+
+{/* in the row */}
+<RoleToggleButton
+  userId={u.id}
+  isStaff={u?.app_metadata?.role === "staff"}
+  disabled={noService}
+/>
+
 export default async function StaffPage() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
