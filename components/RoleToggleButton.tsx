@@ -1,59 +1,46 @@
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 
-export default function RoleToggleButton({
-  userId,
-  isStaff,
-  disabled = false,
-  onDone,
-}: {
+type Props = {
   userId: string;
   isStaff: boolean;
   disabled?: boolean;
   onDone?: () => void;
-}) {
+};
+
+export default function RoleToggleButton({ userId, isStaff, disabled, onDone }: Props) {
   const [loading, setLoading] = useState(false);
 
-  async function handleClick() {
+  const toggle = async () => {
     if (disabled || loading) return;
-
-    const targetRole = isStaff ? "user" : "staff";
-    const ok = window.confirm(
-      `${isStaff ? "Remove" : "Grant"} Staff role for this user?`
-    );
-    if (!ok) return;
-
     setLoading(true);
     try {
-      const res = await fetch("/admin/api/users/set-role", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, role: targetRole }),
+      const res = await fetch('/admin/api/users/toggle-role', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ userId, makeStaff: !isStaff }),
       });
-      const json = await res.json();
-      if (!res.ok || !json?.ok) {
-        alert(json?.error ?? "Failed to update role");
-      } else {
-        onDone?.();
-      }
-    } catch (e: any) {
-      alert(e?.message ?? "Network error");
+      if (!res.ok) throw new Error(await res.text());
+      onDone?.() ?? window.location.reload();
+    } catch (e) {
+      console.error(e);
+      alert('Failed to toggle role.');
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
     <button
-      type="button"
-      onClick={handleClick}
+      onClick={toggle}
       disabled={disabled || loading}
-      aria-disabled={disabled || loading}
-      className="px-3 py-1.5 rounded-md text-sm font-medium border border-slate-300 hover:bg-slate-50 disabled:opacity-50"
-      title={isStaff ? "Demote to User" : "Promote to Staff"}
+      className={`rounded-xl px-3 py-2 text-sm border
+        ${disabled || loading ? 'opacity-50 pointer-events-none' : 'hover:bg-black/5 dark:hover:bg-white/10'}`}
+      aria-label={isStaff ? 'Demote to user' : 'Promote to staff'}
+      title={isStaff ? 'Demote to user' : 'Promote to staff'}
     >
-      {loading ? "Saving…" : isStaff ? "Remove Staff" : "Make Staff"}
+      {loading ? 'Working…' : isStaff ? 'Demote' : 'Promote'}
     </button>
   );
 }
