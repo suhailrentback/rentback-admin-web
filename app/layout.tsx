@@ -1,5 +1,7 @@
+// app/layout.tsx
 import "./globals.css";
 import FloatingLangSwitch from "@/components/FloatingLangSwitch";
+import FloatingThemeSwitch from "@/components/FloatingThemeSwitch";
 import type { Metadata } from "next";
 import { getLangFromCookies } from "@/lib/i18n/server";
 import { I18nProvider } from "@/lib/i18n/index";
