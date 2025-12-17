@@ -5,13 +5,17 @@ import { useState } from "react";
 export default function ForceSignOutButton({
   userId,
   onDone,
+  disabled = false,
 }: {
   userId: string;
   onDone?: () => void;
+  disabled?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
 
   async function handleClick() {
+    if (disabled || loading) return;
+
     const ok = window.confirm(
       "Force sign out this user from all devices? They will need to log in again."
     );
@@ -42,10 +46,10 @@ export default function ForceSignOutButton({
     <button
       type="button"
       onClick={handleClick}
-      disabled={loading}
+      disabled={disabled || loading}
+      aria-disabled={disabled || loading}
       className="px-3 py-1.5 rounded-md text-sm font-medium border border-red-500 text-red-600 hover:bg-red-50 disabled:opacity-50"
-      aria-label="Force sign out user"
-      title="Force sign out user"
+      title={disabled ? "Service not configured" : "Force sign out user"}
     >
       {loading ? "Revoking…" : "Force Sign Out"}
     </button>
