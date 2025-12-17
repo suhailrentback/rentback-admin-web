@@ -8,7 +8,6 @@ export default function FloatingThemeSwitch() {
   const [theme, setTheme] = useState<Theme>("light");
   const [isPending, startTransition] = useTransition();
 
-  // Initialize from current <html class="dark"> (Tailwind dark mode class)
   useEffect(() => {
     const isDark = document.documentElement.classList.contains("dark");
     setTheme(isDark ? "dark" : "light");
@@ -18,12 +17,10 @@ export default function FloatingThemeSwitch() {
     const next: Theme = theme === "dark" ? "light" : "dark";
     setTheme(next);
 
-    // Apply immediately on client
     const html = document.documentElement;
     if (next === "dark") html.classList.add("dark");
     else html.classList.remove("dark");
 
-    // Persist preference (cookie) for SSR via /api/prefs; ignore failures
     try {
       await fetch("/api/prefs", {
         method: "POST",
@@ -32,7 +29,6 @@ export default function FloatingThemeSwitch() {
       });
     } catch {}
 
-    // Refresh so server components render with the new theme consistently
     startTransition(() => {
       window.location.reload();
     });
