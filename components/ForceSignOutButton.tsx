@@ -1,57 +1,53 @@
-// components/ForceSignOutButton.tsx
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 
 export default function ForceSignOutButton({
   userId,
-  disabled,
+  onDone,
 }: {
   userId: string;
-  disabled?: boolean;
+  onDone?: () => void;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  async function run() {
-    if (disabled || busy) return;
-    setBusy(true);
-    setErr(null);
+  async function handleClick() {
+    const ok = window.confirm(
+      "Force sign out this user from all devices? They will need to log in again."
+    );
+    if (!ok) return;
+
+    setLoading(true);
     try {
-      const res = await fetch('/admin/api/users/force-signout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/admin/api/users/force-signout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userId }),
       });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j?.error || `HTTP ${res.status}`);
+      const json = await res.json();
+      if (!res.ok || !json?.ok) {
+        alert(json?.error ?? "Failed to force sign out");
+      } else {
+        alert("User sessions revoked.");
+        onDone?.();
       }
-      setDone(true);
     } catch (e: any) {
-      setErr(e?.message || 'Error');
+      alert(e?.message ?? "Network error");
     } finally {
-      setBusy(false);
+      setLoading(false);
     }
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={run}
-        disabled={disabled || busy || done}
-        title={
-          disabled
-            ? 'No service role key configured — this will no-op.'
-            : 'Force invalidate sessions for this user'
-        }
-        className="px-3 py-1 rounded-lg border text-xs hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-50"
-      >
-        {done ? 'Signed out' : busy ? 'Working…' : 'Force sign-out'}
-      </button>
-      {err ? <span className="text-xs text-red-600">{err}</span> : null}
-    </div>
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={loading}
+      className="px-3 py-1.5 rounded-md text-sm font-medium border border-red-500 text-red-600 hover:bg-red-50 disabled:opacity-50"
+      aria-label="Force sign out user"
+      title="Force sign out user"
+    >
+      {loading ? "Revoking…" : "Force Sign Out"}
+    </button>
   );
 }
