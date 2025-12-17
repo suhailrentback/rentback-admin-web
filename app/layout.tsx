@@ -1,10 +1,10 @@
 import "./globals.css";
+import FloatingLangSwitch from "@/components/FloatingLangSwitch";
 import type { Metadata } from "next";
 import { getLangFromCookies } from "@/lib/i18n/server";
 import { I18nProvider } from "@/lib/i18n/index";
 import { dirFor } from "@/lib/i18n";
 import { getThemeFromCookies } from "@/lib/theme/server";
-import FloatingThemeSwitch from "@/components/FloatingThemeSwitch";
 import SkipLink from "@/components/SkipLink";
 
 export const metadata: Metadata = {
