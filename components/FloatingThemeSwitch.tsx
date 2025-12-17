@@ -1,50 +1,43 @@
-"use client";
+// components/FloatingThemeSwitch.tsx
+'use client';
 
-import { useEffect, useState, useTransition } from "react";
-
-type Theme = "light" | "dark";
+import { useEffect, useState } from 'react';
 
 export default function FloatingThemeSwitch() {
-  const [theme, setTheme] = useState<Theme>("light");
-  const [isPending, startTransition] = useTransition();
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
-    const isDark = document.documentElement.classList.contains("dark");
-    setTheme(isDark ? "dark" : "light");
+    // Infer initial theme from <html> attributes/classes
+    const html = document.documentElement;
+    const attr = (html.getAttribute('data-theme') as 'light' | 'dark') || undefined;
+    const isDarkClass = html.classList.contains('dark');
+    const inferred: 'light' | 'dark' = attr ?? (isDarkClass ? 'dark' : 'light');
+    setTheme(inferred);
   }, []);
 
-  async function toggleTheme() {
-    const next: Theme = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-
+  function applyTheme(next: 'light' | 'dark') {
     const html = document.documentElement;
-    if (next === "dark") html.classList.add("dark");
-    else html.classList.remove("dark");
+    // keep both data-theme and class in sync
+    html.setAttribute('data-theme', next);
+    html.classList.toggle('dark', next === 'dark');
+    // simple cookie (1 year)
+    document.cookie = `theme=${next}; Max-Age=31536000; Path=/; SameSite=Lax`;
+  }
 
-    try {
-      await fetch("/api/prefs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ theme: next }),
-      });
-    } catch {}
-
-    startTransition(() => {
-      window.location.reload();
-    });
+  function toggle() {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    applyTheme(next);
   }
 
   return (
     <button
       type="button"
-      onClick={toggleTheme}
       aria-label="Toggle theme"
-      title="Toggle theme"
-      className="fixed bottom-4 right-4 z-40 rounded-xl border px-3 py-2 text-sm backdrop-blur
-                 bg-white/70 border-black/10 text-black
-                 dark:bg-black/30 dark:border-white/10 dark:text-white"
+      onClick={toggle}
+      className="fixed bottom-6 right-6 z-40 rounded-2xl px-3 py-2 text-sm font-medium shadow-md border border-black/10 dark:border-white/10 bg-white/80 dark:bg-zinc-900/80 backdrop-blur hover:bg-white dark:hover:bg-zinc-900"
     >
-      {isPending ? "…" : theme === "dark" ? "Dark" : "Light"}
+      {theme === 'dark' ? '🌙 Dark' : '☀️ Light'}
     </button>
   );
 }
