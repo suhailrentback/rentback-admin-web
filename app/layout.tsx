@@ -4,7 +4,6 @@ import { getLangFromCookies } from "@/lib/i18n/server";
 import { I18nProvider } from "@/lib/i18n/index";
 import { dirFor } from "@/lib/i18n";
 import { getThemeFromCookies } from "@/lib/theme/server";
-import FloatingLangSwitch from "@/components/FloatingLangSwitch";
 import FloatingThemeSwitch from "@/components/FloatingThemeSwitch";
 import SkipLink from "@/components/SkipLink";
 
