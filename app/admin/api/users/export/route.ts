@@ -1,42 +1,69 @@
 // app/admin/api/users/export/route.ts
-import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+type Row = { email: string; last_login: string; role: string };
 
 export async function GET() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const admin = createAdminClient();
 
-  const headers = {
-    'Content-Type': 'text/csv; charset=utf-8',
-    'Content-Disposition': 'attachment; filename="users.csv"',
-  };
+  // Pull up to 10k users (adjust if you need more)
+  const pageSize = 1000;
+  let page = 1;
+  const rows: Row[] = [];
 
-  // Safe empty CSV if service key missing
-  if (!url || !service) {
-    return new NextResponse('id,email,last_sign_in_at\n', { headers });
+  while (true) {
+    const { data, error } = await admin.auth.admin.listUsers({
+      page,
+      perPage: pageSize,
+    });
+    if (error) {
+      return NextResponse.json(
+        { ok: false, error: error.message },
+        { status: 500 }
+      );
+    }
+    const batch = (data?.users ?? []).map((u) => ({
+      email: u.email ?? "",
+      last_login: u.last_sign_in_at ?? "",
+      role: (u.app_metadata as any)?.role ?? "user",
+    }));
+    rows.push(...batch);
+    if (!data || data.users.length < pageSize) break;
+    page += 1;
   }
 
-  const admin = createClient(url, service, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const header = "email,last_login,role";
+  const body = rows
+    .map((r) =>
+      [
+        safeCsv(r.email),
+        safeCsv(r.last_login),
+        safeCsv(r.role),
+      ].join(",")
+    )
+    .join("\n");
 
-  const { data, error } = await admin.auth.admin.listUsers({
-    page: 1,
-    perPage: 1000,
-  });
+  const csv = [header, body].join("\n");
 
-  if (error) {
-    return new NextResponse('id,email,last_sign_in_at\n', { headers });
+  return new NextResponse(csv, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="users_${new Date()
+        .toISOString()
+        .slice(0, 19)
+        .replace(/[:T]/g, "-")}.csv"`,
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+function safeCsv(val: string) {
+  if (val == null) return "";
+  // Quote if contains comma/quote/newline
+  if (/[",\n]/.test(val)) {
+    return `"${val.replace(/"/g, '""')}"`;
   }
-
-  const rows =
-    data?.users?.map(
-      (u) =>
-        `${u.id},${(u.email || '').replace(/[,"]/g, ' ')},${
-          u.last_sign_in_at || ''
-        }`
-    ) ?? [];
-
-  const csv = ['id,email,last_sign_in_at', ...rows].join('\n');
-  return new NextResponse(csv, { headers });
+  return val;
 }
