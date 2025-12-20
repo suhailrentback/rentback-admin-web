@@ -1,57 +1,53 @@
+// components/ForceSignOutButton.tsx
 "use client";
 
 import { useState } from "react";
 
 export default function ForceSignOutButton({
   userId,
+  disabled,
   onDone,
-  disabled = false,
 }: {
   userId: string;
-  onDone?: () => void;
   disabled?: boolean;
+  onDone?: () => void;
 }) {
   const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [ok, setOk] = useState(false);
 
-  async function handleClick() {
-    if (disabled || loading) return;
-
-    const ok = window.confirm(
-      "Force sign out this user from all devices? They will need to log in again."
-    );
-    if (!ok) return;
-
+  const doIt = async () => {
     setLoading(true);
+    setErr(null);
+    setOk(false);
     try {
-      const res = await fetch("/admin/api/users/force-signout", {
+      const r = await fetch("/admin/api/users/force-signout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userId }),
       });
-      const json = await res.json();
-      if (!res.ok || !json?.ok) {
-        alert(json?.error ?? "Failed to force sign out");
-      } else {
-        alert("User sessions revoked.");
-        onDone?.();
-      }
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error(j?.error || "Failed");
+      setOk(true);
+      onDone?.();
     } catch (e: any) {
-      alert(e?.message ?? "Network error");
+      setErr(e?.message || "Request failed");
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
     <button
       type="button"
-      onClick={handleClick}
-      disabled={disabled || loading}
-      aria-disabled={disabled || loading}
-      className="px-3 py-1.5 rounded-md text-sm font-medium border border-red-500 text-red-600 hover:bg-red-50 disabled:opacity-50"
-      title={disabled ? "Service not configured" : "Force sign out user"}
+      onClick={doIt}
+      disabled={!!disabled || loading}
+      className="rounded-xl border px-3 py-1.5 text-sm hover:bg-black/5 disabled:opacity-50"
+      aria-disabled={!!disabled || loading}
+      title="Revoke refresh tokens so the user must sign in again"
     >
-      {loading ? "Revoking…" : "Force Sign Out"}
+      {loading ? "Revoking…" : ok ? "Revoked" : "Force sign-out"}
+      {err ? <span className="sr-only"> — {err}</span> : null}
     </button>
   );
 }
