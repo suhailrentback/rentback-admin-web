@@ -1,31 +1,38 @@
-'use client';
+// components/RoleToggleButton.tsx
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 
-type Props = {
+export default function RoleToggleButton({
+  userId,
+  isStaff,
+  disabled,
+  onDone,
+}: {
   userId: string;
   isStaff: boolean;
   disabled?: boolean;
   onDone?: () => void;
-};
-
-export default function RoleToggleButton({ userId, isStaff, disabled, onDone }: Props) {
+}) {
   const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
-  const toggle = async () => {
-    if (disabled || loading) return;
+  const nextRole: "staff" | "user" = isStaff ? "user" : "staff";
+
+  const run = async () => {
     setLoading(true);
+    setErr(null);
     try {
-      const res = await fetch('/admin/api/users/toggle-role', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ userId, makeStaff: !isStaff }),
+      const r = await fetch("/admin/api/users/toggle-role", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, role: nextRole }),
       });
-      if (!res.ok) throw new Error(await res.text());
-      onDone?.() ?? window.location.reload();
-    } catch (e) {
-      console.error(e);
-      alert('Failed to toggle role.');
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error(j?.error || "Failed");
+      onDone?.();
+    } catch (e: any) {
+      setErr(e?.message || "Request failed");
     } finally {
       setLoading(false);
     }
@@ -33,14 +40,15 @@ export default function RoleToggleButton({ userId, isStaff, disabled, onDone }: 
 
   return (
     <button
-      onClick={toggle}
-      disabled={disabled || loading}
-      className={`rounded-xl px-3 py-2 text-sm border
-        ${disabled || loading ? 'opacity-50 pointer-events-none' : 'hover:bg-black/5 dark:hover:bg-white/10'}`}
-      aria-label={isStaff ? 'Demote to user' : 'Promote to staff'}
-      title={isStaff ? 'Demote to user' : 'Promote to staff'}
+      type="button"
+      onClick={run}
+      disabled={!!disabled || loading}
+      className="rounded-xl border px-3 py-1.5 text-sm hover:bg-black/5 disabled:opacity-50"
+      aria-disabled={!!disabled || loading}
+      title="Toggle staff role"
     >
-      {loading ? 'Working…' : isStaff ? 'Demote' : 'Promote'}
+      {loading ? "Saving…" : isStaff ? "Make user" : "Make staff"}
+      {err ? <span className="sr-only"> — {err}</span> : null}
     </button>
   );
 }
