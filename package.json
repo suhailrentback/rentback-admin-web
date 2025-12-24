@@ -1,34 +1,32 @@
 {
   "name": "rentback-admin-web",
-  "private": true,
   "version": "0.1.0",
-  "license": "MIT",
-  "engines": {
-    "node": "20.x"
-  },
+  "private": true,
+  "engines": { "node": "20.x" },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint || echo \"lint skipped\""
+    "lint": "next lint"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.5.1",
-    "@supabase/supabase-js": "^2.47.10",
-    "clsx": "^2.1.1",
     "next": "14.2.5",
     "react": "18.2.0",
-    "react-dom": "18.2.0"
-    "tailwindcss": "3.4.14",
-  "postcss": "8.4.49",
-  "autoprefixer": "10.4.20"
+    "react-dom": "18.2.0",
+    "clsx": "2.1.1",
+    "@supabase/supabase-js": "2.47.10",
+    "@supabase/ssr": "0.4.0",
+    "lucide-react": "0.469.0"
   },
   "devDependencies": {
-    "@types/node": "^20.12.12",
-    "@types/react": "^18.2.66",
-    "@types/react-dom": "^18.2.22",
-    "eslint": "^8.57.1",
-    "eslint-config-next": "14.2.5",
-    "typescript": "^5.6.3"
+    "typescript": "5.6.3",
+    "@types/node": "20.17.12",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "tailwindcss": "3.4.14",
+    "postcss": "8.4.49",
+    "autoprefixer": "10.4.20",
+    "eslint": "8.57.1",
+    "eslint-config-next": "14.2.5"
   }
 }
