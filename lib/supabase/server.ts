@@ -2,10 +2,7 @@ import { cookies } from "next/headers";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-/**
- * Single factory for server-side Supabase client (App Router).
- * No arguments needed; it reads/sets cookies via next/headers.
- */
+/** Core factory: SSR-safe Supabase client using Next cookies */
 export function getSupabaseServer(): SupabaseClient {
   const store = cookies();
 
@@ -25,17 +22,27 @@ export function getSupabaseServer(): SupabaseClient {
           try {
             store.set({ name, value, ...options });
           } catch {
-            // Can only set inside Server Actions / Route Handlers
+            // can only set in server actions / route handlers
           }
         },
         remove(name: string, options?: CookieOptions) {
           try {
             store.set({ name, value: "", ...options });
           } catch {
-            // Same note as above
+            // same note as above
           }
         },
       },
     }
   );
 }
+
+/** Back-compat aliases — accept and ignore any arguments */
+export function createServerSupabase(..._args: any[]): SupabaseClient {
+  return getSupabaseServer();
+}
+export function createRouteSupabase(..._args: any[]): SupabaseClient {
+  return getSupabaseServer();
+}
+
+export default getSupabaseServer;
