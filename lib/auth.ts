@@ -1,33 +1,48 @@
-// lib/auth.ts
-import { getSupabaseServer } from "./supabase/server";
 import type { User } from "@supabase/supabase-js";
+import { getSupabaseServer } from "@/lib/supabase/server";
 
-export async function getUser(): Promise<User | null> {
-  const supabase = getSupabaseServer();
-  const { data } = await supabase.auth.getUser();
-  return data.user ?? null;
-}
+export type AdminCheck = { ok: boolean; user: User | null; reason?: string };
 
-export async function requireUser(): Promise<User> {
-  const user = await getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+/**
+ * Returns { ok, user, reason } so callers can do:
+ *   const { ok } = await requireAdmin(); if (!ok) { ... }
+ */
+export async function requireAdmin(): Promise<AdminCheck> {
+  const sb = getSupabaseServer();
+  const { data, error } = await sb.auth.getUser();
 
-/** Accepts either app_metadata.roles: ['admin'] or *_metadata.is_admin: true */
-function isAdminUser(user: User): boolean {
-  const roles = (user.app_metadata?.roles ?? []) as string[];
-  return (
-    roles.includes("admin") ||
-    user.app_metadata?.is_admin === true ||
-    (user.user_metadata as any)?.is_admin === true
-  );
-}
-
-export async function requireAdmin(): Promise<User> {
-  const user = await requireUser();
-  if (!isAdminUser(user)) {
-    throw new Error("Forbidden: admin only");
+  if (error || !data?.user) {
+    return { ok: false, user: null, reason: error?.message ?? "No user" };
+    // Page can render a friendly "not authorized" message.
   }
-  return user;
+
+  const u = data.user;
+  // Merge app/user metadata (covers various setups)
+  const meta: any = { ...(u.app_metadata ?? {}), ...(u.user_metadata ?? {}) };
+
+  const roles: string[] = [
+    ...(Array.isArray(meta.roles) ? meta.roles : []),
+    ...(Array.isArray(meta.role) ? meta.role : []),
+  ].map((r) => String(r).toLowerCase());
+
+  const singleRole = String(meta.role ?? "").toLowerCase();
+
+  const isAdmin =
+    Boolean(meta.is_admin) ||
+    Boolean(meta.admin) ||
+    Boolean(meta.is_staff) ||
+    Boolean(meta.staff) ||
+    roles.includes("admin") ||
+    roles.includes("staff") ||
+    singleRole === "admin" ||
+    singleRole === "staff";
+
+  return { ok: isAdmin, user: u, reason: isAdmin ? undefined : "Not admin/staff" };
+}
+
+/** Optional helper if you need just the user elsewhere */
+export async function getSessionUser(): Promise<User | null> {
+  const sb = getSupabaseServer();
+  const { data } = await sb.auth.getUser();
+  return data?.user ?? null;
 }
