@@ -27,4 +27,10 @@
     "postcss": "^8.4.41",
     "autoprefixer": "^10.4.20"
   }
+  {
+  "dependencies": {
+    "@supabase/ssr": "^0.5.1",
+    "clsx": "^2.1.1"
+  }
+}
 }
