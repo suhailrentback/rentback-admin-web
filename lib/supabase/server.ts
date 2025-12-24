@@ -1,9 +1,13 @@
-import { createServerClient } from "@supabase/ssr";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-/** Core factory used everywhere */
-export function getSupabaseServer() {
-  const cookieStore = cookies();
+/**
+ * Single factory for server-side Supabase client (App Router).
+ * No arguments needed; it reads/sets cookies via next/headers.
+ */
+export function getSupabaseServer(): SupabaseClient {
+  const store = cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,36 +15,27 @@ export function getSupabaseServer() {
     {
       cookies: {
         get(name: string) {
-          return cookieStore.get(name)?.value;
+          try {
+            return store.get(name)?.value;
+          } catch {
+            return undefined;
+          }
         },
-        set() {
-          /* no-op on server */
+        set(name: string, value: string, options?: CookieOptions) {
+          try {
+            store.set({ name, value, ...options });
+          } catch {
+            // Can only set inside Server Actions / Route Handlers
+          }
         },
-        remove() {
-          /* no-op on server */
-        },
-      },
-      headers: {
-        get(name: string) {
-          return headers().get(name) ?? undefined;
+        remove(name: string, options?: CookieOptions) {
+          try {
+            store.set({ name, value: "", ...options });
+          } catch {
+            // Same note as above
+          }
         },
       },
     }
   );
 }
-
-/**
- * Back-compat shims:
- * Old code calls createRouteSupabase(cookies) / createServerSupabase(cookies).
- * Accept optional args and ignore them to satisfy call sites.
- */
-export function createRouteSupabase(_maybeCookies?: unknown) {
-  return getSupabaseServer();
-}
-export function createServerSupabase(_maybeCookies?: unknown) {
-  return getSupabaseServer();
-}
-
-// Also export aliases some files re-export from "./index"
-export const supabaseServer = getSupabaseServer;
-export const supabaseRoute = getSupabaseServer;
