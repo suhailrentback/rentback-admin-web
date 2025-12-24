@@ -1,39 +1,46 @@
-// lib/supabase/server.ts
-import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { cookies, headers } from "next/headers";
 
-function env(key: string) {
-  const v = process.env[key];
-  if (!v) console.warn(`[supabase] Missing env: ${key}`);
-  return v ?? "";
-}
-
-/** One canonical server client (usable in RSC + route handlers). */
-export function getSupabaseServer(): SupabaseClient {
+/** Core factory used everywhere */
+export function getSupabaseServer() {
   const cookieStore = cookies();
-  const url = env("NEXT_PUBLIC_SUPABASE_URL");
-  const anon = env("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
-  return createServerClient(url, anon, {
-    cookies: {
-      get: (name: string) => {
-        try {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
           return cookieStore.get(name)?.value;
-        } catch {
-          return undefined;
-        }
+        },
+        set() {
+          /* no-op on server */
+        },
+        remove() {
+          /* no-op on server */
+        },
       },
-      set() {},
-      remove() {},
-    },
-  });
+      headers: {
+        get(name: string) {
+          return headers().get(name) ?? undefined;
+        },
+      },
+    }
+  );
 }
 
-/** Aliases for existing imports in the repo */
-export const createServerSupabase = getSupabaseServer;
-export const createRouteSupabase = getSupabaseServer;
+/**
+ * Back-compat shims:
+ * Old code calls createRouteSupabase(cookies) / createServerSupabase(cookies).
+ * Accept optional args and ignore them to satisfy call sites.
+ */
+export function createRouteSupabase(_maybeCookies?: unknown) {
+  return getSupabaseServer();
+}
+export function createServerSupabase(_maybeCookies?: unknown) {
+  return getSupabaseServer();
+}
+
+// Also export aliases some files re-export from "./index"
 export const supabaseServer = getSupabaseServer;
 export const supabaseRoute = getSupabaseServer;
-
-export default getSupabaseServer;
