@@ -1,33 +1,18 @@
-// lib/supabase/server.ts
+// lib/supabase-server.ts
 import { cookies } from "next/headers";
-import {
-  createServerComponentClient,
-  createRouteHandlerClient,
-} from "@supabase/auth-helpers-nextjs";
+import { createServerClient } from "@supabase/ssr";
 
-/**
- * For Server Components / Pages
- * Usage: const supabase = createServerSupabase();
- */
-export function createServerSupabase() {
-  const store = cookies();
-  return createServerComponentClient({ cookies: () => store });
+export function getSupabaseServer() {
+  const cookieStore = cookies();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createServerClient(url, anon, {
+    cookies: {
+      get(name: string) {
+        return cookieStore.get(name)?.value;
+      },
+      set() {},
+      remove() {},
+    },
+  });
 }
-
-/**
- * For Route Handlers (app/.../route.ts)
- * Usage:
- *   const sb = createRouteSupabase();                // auto uses cookies()
- *   // or
- *   const sb = createRouteSupabase(() => cookies()); // explicit
- */
-export function createRouteSupabase(
-  getCookies?: () => ReturnType<typeof cookies>
-) {
-  const store = getCookies ? getCookies() : cookies();
-  return createRouteHandlerClient({ cookies: () => store });
-}
-
-/** Back-compat aliases */
-export const supabaseServer = createServerSupabase;
-export const supabaseRoute = createRouteSupabase;
