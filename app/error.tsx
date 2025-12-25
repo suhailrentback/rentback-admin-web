@@ -1,5 +1,6 @@
-'use client';
-import { useEffect } from 'react';
+"use client";
+
+import { useEffect } from "react";
 
 export default function Error({
   error,
@@ -9,26 +10,20 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
+    // surface in logs
     console.error(error);
   }, [error]);
 
   return (
-    <div className="min-h-dvh flex items-center justify-center p-6">
-      <div className="max-w-md w-full rounded-2xl border p-6 space-y-4">
-        <h1 className="text-xl font-semibold">Admin — We hit a snag</h1>
-        <p className="text-sm text-gray-600">Retry or go back to the dashboard.</p>
-        <div className="text-xs text-gray-500">
-          {error?.digest ? <>Error ID: {error.digest}</> : null}
-        </div>
-        <div className="flex gap-3">
-          <button onClick={() => reset()} className="rounded-xl px-4 py-2 border shadow-sm">
-            Retry
-          </button>
-          <a href="/" className="rounded-xl px-4 py-2 border shadow-sm">
-            Dashboard
-          </a>
-        </div>
-      </div>
+    <div className="max-w-xl mx-auto p-6 space-y-3">
+      <h1 className="text-2xl font-semibold">Something went wrong</h1>
+      <p className="text-sm text-gray-600">We’ve logged the error (digest: {error?.digest ?? "n/a"}).</p>
+      <button
+        className="px-4 py-2 rounded-md bg-black text-white hover:opacity-90"
+        onClick={() => reset()}
+      >
+        Try again
+      </button>
     </div>
   );
 }
