@@ -1,6 +1,5 @@
 'use client';
-
-import React from 'react';
+import { useEffect } from 'react';
 
 export default function Error({
   error,
@@ -9,26 +8,27 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  React.useEffect(() => {
-    console.error('Admin Error:', error);
+  useEffect(() => {
+    console.error(error);
   }, [error]);
 
   return (
-    <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-semibold">Something went wrong</h1>
-      <div
-        className="rounded-lg border p-4 bg-red-50 text-red-800"
-        role="alert"
-        aria-live="assertive"
-      >
-        <div className="font-mono text-xs break-all">{error.message}</div>
-        {error.digest && (
-          <div className="font-mono text-xs opacity-70">digest: {error.digest}</div>
-        )}
+    <div className="min-h-dvh flex items-center justify-center p-6">
+      <div className="max-w-md w-full rounded-2xl border p-6 space-y-4">
+        <h1 className="text-xl font-semibold">Admin — We hit a snag</h1>
+        <p className="text-sm text-gray-600">Retry or go back to the dashboard.</p>
+        <div className="text-xs text-gray-500">
+          {error?.digest ? <>Error ID: {error.digest}</> : null}
+        </div>
+        <div className="flex gap-3">
+          <button onClick={() => reset()} className="rounded-xl px-4 py-2 border shadow-sm">
+            Retry
+          </button>
+          <a href="/" className="rounded-xl px-4 py-2 border shadow-sm">
+            Dashboard
+          </a>
+        </div>
       </div>
-      <button onClick={() => reset()} className="rounded-lg border px-3 py-1">
-        Try again
-      </button>
     </div>
   );
 }
